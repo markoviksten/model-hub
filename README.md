@@ -33,6 +33,15 @@ Paketti sisältää: sovellus, Python-wheelit (`wheels/`), `tools/oc.exe`. `rsyn
 
 Mallit tuodaan siirtomedialta: kopioi `<malli>.tar` ja `<malli>.sha256` kansioon `models/` (tai käytä UI:n tuontia).
 
+## Kontti (sisältää kaiken)
+Sisältää Pythonin, riippuvuudet, Linux-`oc`:n, `tar`in ja `rsync`in.
+```powershell
+docker build -t model-hub:latest .
+docker run --rm -p 127.0.0.1:8767:8767 -v ${PWD}/models:/models model-hub:latest
+# tai: docker compose up
+```
+Air-gapped: `.\build_image.ps1` → `dist/model-hub-image.tar.gz` (+ `.sha256`); kohteessa `docker load -i ...` ja `-e MODEL_HUB_OFFLINE=1 -e MODEL_HUB_LOADER_IMAGE=<peilattu image>`. Podman: sama komennoilla `podman`. Katso [INSTALL.md](INSTALL.md) kohta 3b.
+
 ## Ympäristömuuttujat
 | Muuttuja | Oletus |
 |---|---|

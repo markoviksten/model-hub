@@ -81,6 +81,41 @@ python -m venv .venv
 
 Lataa malli yhdistetyllä koneella Model Hubin "Hae malli" -välilehdellä ja valitse **Luo myös .tar ja SHA-256**. Siirrä tiedostot `<malli>.tar` ja `<malli>.tar.sha256` kohdekoneen kansioon `models\` ja paina välilehdellä **Tuo**. Sovellus tarkistaa SHA-256:n ja purkaa paketin.
 
+## 3b. Konttiasennus (suositeltu: sisältää kaiken)
+
+Kontti sisältää Pythonin, riippuvuudet, Linux-`oc`:n (SHA-256-tarkistettu), `tar`in ja `rsync`in. Hostille ei tarvita Pythonia eikä `oc`:ta, ja Linux-`oc` poistaa zip-paketin OS-yhteensopivuusongelman. Kontti ajaa ei-root-käyttäjänä (UID 1001, toimii myös satunnaisella UID:llä).
+
+### Yhdistetty kone
+
+```powershell
+docker build -t model-hub:latest .
+docker run --rm -p 127.0.0.1:8767:8767 -v ${PWD}/models:/models model-hub:latest
+# tai
+docker compose up
+```
+
+Podman: korvaa `docker` komennolla `podman` (esim. `podman run --rm -p 127.0.0.1:8767:8767 -v ./models:/models:Z model-hub:latest`). Avaa http://127.0.0.1:8767.
+
+### Air-gapped
+
+1. Yhdistetyllä koneella: `.\build_image.ps1` → `dist\model-hub-image.tar.gz` ja `.sha256` (noin 410 MB).
+2. Siirrä molemmat kohteeseen ja tarkista summa (kuten kohdassa 3.2).
+3. Kohteessa:
+   ```powershell
+   docker load -i model-hub-image.tar.gz      # podman load -i ...
+   docker run --rm -p 127.0.0.1:8767:8767 -e MODEL_HUB_OFFLINE=1 `
+     -e MODEL_HUB_LOADER_IMAGE=<oma-rekisteri>/ubi9/ubi:latest `
+     -v ${PWD}/models:/models model-hub:latest
+   ```
+4. Peilaa apupodin image (`ubi9/ubi`, sisältää `tar`) clusterin rekisteriin ja aseta se `MODEL_HUB_LOADER_IMAGE`-muuttujalla.
+5. Kontti voidaan myös työntää sisäiseen rekisteriin (`docker tag` + `docker push`).
+
+Mallit ja `.tar`-paketit ovat hostin `models/`-kansiossa (volume `/models`).
+
+### OpenShiftissä ajaminen (valinnainen)
+
+Image toimii OpenShiftin satunnaisella UID:llä. Sovelluksessa ei ole autentikointia, joten älä luo Routea; käytä `oc port-forward`ia.
+
 ## 4. Ensimmäinen käyttö
 
 1. **1. Hae malli**: lataa (yhdistetty) tai tuo paketti (air-gapped).

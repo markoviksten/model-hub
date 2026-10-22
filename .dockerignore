@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+models
+wheels
+tools
+dist
+*.err
+*.out
+*.log
+*.ps1
+*.bat
+*.md
+Dockerfile
+docker-compose.yml
