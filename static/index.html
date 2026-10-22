@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Hub</title>
+<link rel="stylesheet" href="/static/carbon.css">
+<style>
+  body { background: var(--cds-background); color: var(--cds-text-primary); font-family: "IBM Plex Sans", system-ui, sans-serif; margin: 0; padding-top: 3rem; }
+  main { max-width: 56rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  h1 { font-size: 2rem; font-weight: 400; margin: 0 0 .5rem; }
+  h2 { font-size: 1.25rem; font-weight: 400; margin: 2rem 0 1rem; }
+  code, pre { font-family: "IBM Plex Mono", Consolas, monospace; }
+  code { background: var(--cds-layer-01); padding: 0 .25rem; font-size: .8125rem; }
+  pre { background: var(--cds-layer-01); padding: 1rem; font-size: .75rem; max-height: 14rem; overflow: auto; white-space: pre-wrap; margin: 1rem 0 0; }
+  .muted { color: var(--cds-text-secondary); font-size: .875rem; }
+  .hidden { display: none !important; }
+  .row { display: flex; gap: 1rem; flex-wrap: wrap; } .row > div { flex: 1; min-width: 12rem; }
+  .cds--form-item, .cds--tile { margin-bottom: 1rem; }
+  .cds--tile.item { display: flex; align-items: center; gap: 1rem; margin-bottom: .5rem; }
+  .cds--tile.item .info { flex: 1; }
+  .cds--inline-notification { max-inline-size: none; min-inline-size: 0; margin: 1rem 0; }
+  .cds--tabs { margin-top: 1.5rem; border-bottom: 1px solid var(--cds-border-subtle); }
+  .cds--tabs .cds--tab--list { display: flex; }
+  .cds--header { display: flex; align-items: center; padding: 0 1rem; }
+  .cds--header__name { padding: 0; font-weight: 600; }
+  .cds--tabs .cds--tabs__nav-item { background: none; border: 0; border-block-end: 2px solid transparent; cursor: pointer; padding: 0 1.5rem; margin-inline-end: .25rem; min-block-size: 3rem; font: inherit; color: var(--cds-text-secondary); }
+  .cds--tabs .cds--tabs__nav-item:hover { background: var(--cds-layer-hover); }
+  .cds--tabs .cds--tabs__nav-item--selected { color: var(--cds-text-primary); font-weight: 600; border-block-end-color: var(--cds-border-interactive); }
+  .cds--btn { cursor: pointer; }
+  .cds--btn--sm { min-block-size: 2rem; block-size: 2rem; padding-block: 0; padding-inline: 1rem; align-items: center; }
+  .cds--tile.item .cds--btn--sm { flex: none; }
+  ul.steplist { list-style: none; margin: 1rem 0; padding: 0; border: 1px solid var(--cds-border-subtle); }
+  ul.steplist li { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border-bottom: 1px solid var(--cds-border-subtle); font-size: .875rem; }
+  ul.steplist li:last-child { border-bottom: 0; }
+  ul.steplist .nm { flex: 1; }
+  ul.steplist .tm { color: var(--cds-text-secondary); font-variant-numeric: tabular-nums; }
+  ul.steplist svg { flex: none; }
+  ul.steplist .complete svg { fill: var(--cds-support-success); }
+  ul.steplist .current svg { fill: var(--cds-interactive); }
+  ul.steplist .current .nm { font-weight: 600; }
+  ul.steplist .incomplete { color: var(--cds-text-secondary); }
+  ul.steplist .incomplete svg { fill: var(--cds-icon-disabled); }
+  ul.steplist .error svg { fill: var(--cds-support-error); }
+  #presets { margin-bottom: 1.5rem; }
+  #dl, #login, #go { margin-top: .5rem; }
+  .jobbox { margin-top: 1rem; }
+  .meta { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: .5rem; font-size: .875rem; }
+  .meta b { font-weight: 600; }
+  .cds--progress { margin: 1rem 0; }
+  .cds--progress-step svg { flex: none; }
+  .cds--progress-step--error .cds--progress-label, .cds--progress-step--error svg { color: var(--cds-support-error); fill: var(--cds-support-error); }
+  .cds--progress-bar { margin: .5rem 0; }
+  ol.next li { margin: .4rem 0; }
+</style>
+</head>
+<body>
+<header class="cds--header" aria-label="Model Hub">
+  <span class="cds--header__name"><span class="cds--header__name--prefix">IBM&nbsp;</span>Model Hub</span>
+</header>
+
+<main>
+<h1>Model Hub</h1>
+<p class="muted" id="infoLine"></p>
+
+<div class="cds--tabs">
+  <div class="cds--tab--list" role="tablist">
+    <button class="cds--tabs__nav-item" role="tab" data-tab="get">1. Hae malli</button>
+    <button class="cds--tabs__nav-item" role="tab" data-tab="deploy">2. Vie OpenShift AI:hin</button>
+  </div>
+</div>
+
+<section id="get">
+  <div id="dlSection">
+    <h2>Lataa Hugging Facesta</h2>
+    <div id="presets"></div>
+    <div class="cds--form-item"><label class="cds--label" for="repo">Muu malli: repo ID (esim. organisaatio/malli)</label>
+      <input class="cds--text-input" type="text" id="repo" placeholder="RedHatAI/Qwen2-0.5B-Instruct-FP8"></div>
+    <div class="cds--form-item"><label class="cds--label" for="hfToken">HF-token (valinnainen, vain gated-malleille)</label>
+      <input class="cds--text-input" type="password" id="hfToken" autocomplete="off"></div>
+    <div class="cds--form-item cds--checkbox-wrapper">
+      <input class="cds--checkbox" type="checkbox" id="makeTar">
+      <label class="cds--checkbox-label" for="makeTar"><span class="cds--checkbox-label-text">Luo myös .tar ja SHA-256 (siirtoa varten air-gapped-ympäristöön)</span></label></div>
+    <button class="cds--btn cds--btn--primary" id="dl">Lataa</button>
+    <div id="dlStatus" class="jobbox"></div>
+  </div>
+  <div id="offlineNote" class="cds--inline-notification cds--inline-notification--info hidden"><div class="cds--inline-notification__details"><div class="cds--inline-notification__text-wrapper"><div class="cds--inline-notification__subtitle" id="offlineText"></div></div></div></div>
+
+  <h2>Tuo siirtopaketti (.tar)</h2>
+  <p class="muted">Kopioi <code>malli.tar</code> ja <code>malli.tar.sha256</code> kansioon <code id="dirPk"></code>. Sovellus tarkistaa summan ja purkaa paketin.</p>
+  <div id="pkgList"></div>
+  <div id="pkgStatus" class="jobbox"></div>
+</section>
+
+<section id="deploy" class="hidden">
+  <h2>Kirjaudu</h2>
+  <div id="loggedOut">
+    <div class="cds--form-item"><label class="cds--label" for="cmd">Liitä oc login -komento (OpenShift-konsolin "Copy login command")</label>
+      <textarea class="cds--text-area" id="cmd" rows="2" placeholder="oc login --token=sha256~... --server=https://api.example.com:6443" autocomplete="off"></textarea></div>
+    <button class="cds--btn cds--btn--primary" id="login">Kirjaudu</button>
+  </div>
+  <div id="loggedIn" class="hidden">
+    <span class="cds--tag cds--tag--green">Kirjautunut</span>
+    <code id="who"></code> @ <code id="srv"></code>
+    <button class="cds--btn cds--btn--ghost cds--btn--sm" id="logout">Kirjaa ulos</button>
+  </div>
+  <div id="loginMsg" class="muted" style="color: var(--cds-support-error)"></div>
+
+  <div id="deploySection" class="hidden">
+    <h2>Malli ja kohde</h2>
+    <div class="cds--form-item"><label class="cds--label" for="model">Malli</label>
+      <div class="cds--select"><div class="cds--select-input__wrapper"><select class="cds--select-input" id="model"></select></div></div>
+      <div class="muted" id="modelsDir"></div></div>
+    <div class="row">
+      <div class="cds--form-item"><label class="cds--label" for="ns">Projekti (namespace)</label><input class="cds--text-input" type="text" id="ns" placeholder="llm"></div>
+      <div class="cds--form-item"><label class="cds--label" for="pvc">PVC:n nimi</label><input class="cds--text-input" type="text" id="pvc" value="model-storage"></div>
+      <div class="cds--form-item"><label class="cds--label" for="size">PVC:n koko (Gi)</label><input class="cds--text-input" type="number" id="size" min="1" max="2000" value="5"></div>
+    </div>
+    <div class="row">
+      <div class="cds--form-item"><label class="cds--label" for="sc">Storage class (tyhjä = oletus)</label><input class="cds--text-input" type="text" id="sc"></div>
+      <div class="cds--form-item"><label class="cds--label" for="img">Apupodin image (air-gapped: oma rekisteri, jossa tar)</label><input class="cds--text-input" type="text" id="img"></div>
+    </div>
+    <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="mkns">
+      <label class="cds--checkbox-label" for="mkns"><span class="cds--checkbox-label-text">Luo projekti, jos sitä ei ole</span></label></div>
+    <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="root">
+      <label class="cds--checkbox-label" for="root"><span class="cds--checkbox-label-text">Aja apupodi rootina (vain jos kirjoitus PVC:lle epäonnistuu "Permission denied"; vaatii anyuid-oikeuden)</span></label></div>
+    <button class="cds--btn cds--btn--primary" id="go">Kopioi malli PVC:lle</button>
+  </div>
+
+  <div id="progress" class="hidden">
+    <h2>Eteneminen</h2>
+    <div id="copyBar"></div>
+    <ul class="steplist" id="steps"></ul>
+    <div id="msg"></div>
+    <pre id="log"></pre>
+  </div>
+  <div id="next" class="cds--tile hidden"></div>
+</section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; };
+const gb = b => b >= 1e9 ? (b/1e9).toFixed(2) + " GB" : (b/1e6).toFixed(1) + " MB";
+const JSON_HDR = { "Content-Type": "application/json" };
+let models = [], info = {}, timers = {};
+
+/** Format seconds as m:ss or h:mm:ss ("–" when unknown). */
+function fmtT(s) {
+  if (s == null || !isFinite(s)) return "–";
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(sec).padStart(2, "0");
+}
+/** Estimated seconds left from done/total over elapsed time (null if too early). */
+function eta(done, total, elapsed) {
+  if (!elapsed || elapsed < 3 || !done || done >= total) return null;
+  return (total - done) / (done / elapsed);
+}
+/** Carbon progress bar markup; `kind` is "" | "finished" | "error" | "indeterminate". */
+function bar(label, pct, helper, kind) {
+  pct = Math.max(0, Math.min(100, pct || 0));
+  const cls = kind ? ` cds--progress-bar--${kind}` : "";
+  return `<div class="cds--progress-bar${cls}">
+    <div class="cds--progress-bar__label"><span class="cds--progress-bar__label-text">${label}</span></div>
+    <div class="cds--progress-bar__track" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+      <div class="cds--progress-bar__bar" style="transform: scaleX(${kind === "indeterminate" ? 1 : pct / 100})"></div></div>
+    <div class="cds--progress-bar__helper-text">${helper}</div></div>`;
+}
+function notify(kind, text) {
+  return `<div class="cds--inline-notification cds--inline-notification--${kind}"><div class="cds--inline-notification__details"><div class="cds--inline-notification__text-wrapper"><div class="cds--inline-notification__subtitle">${esc(text)}</div></div></div></div>`;
+}
+const SVG = {
+  complete: '<svg width="16" height="16" viewBox="0 0 32 32"><path d="M16 2a14 14 0 1 0 14 14A14 14 0 0 0 16 2Zm-2 19.59-5-5L10.59 15 14 18.41 21.41 11l1.596 1.586Z"/></svg>',
+  current: '<svg width="16" height="16" viewBox="0 0 32 32"><path d="M16 2a14 14 0 1 0 14 14A14 14 0 0 0 16 2Zm0 26a12 12 0 1 1 12-12 12 12 0 0 1-12 12Z"/><path d="M16 8a8 8 0 1 0 8 8 8 8 0 0 0-8-8Z"/></svg>',
+  incomplete: '<svg width="16" height="16" viewBox="0 0 32 32"><path d="M16 2a14 14 0 1 0 14 14A14 14 0 0 0 16 2Zm0 26a12 12 0 1 1 12-12 12 12 0 0 1-12 12Z"/></svg>',
+  error: '<svg width="16" height="16" viewBox="0 0 32 32"><path d="M16 2a14 14 0 1 0 14 14A14 14 0 0 0 16 2Zm5.4 18L20 21.4l-4-4-4 4L10.6 20l4-4-4-4L12 10.6l4 4 4-4L21.4 12l-4 4Z"/></svg>',
+};
+const STEP_CLS = { done: "complete", running: "current", pending: "incomplete", error: "error" };
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Pyyntö epäonnistui");
+  return body;
+}
+const post = (path, data) => api(path, { method: "POST", headers: JSON_HDR, body: JSON.stringify(data ?? {}) });
+
+function poll(key, url, render, onDone) {
+  clearInterval(timers[key]);
+  const tick = async () => {
+    let s;
+    try { s = await api(url); } catch { clearInterval(timers[key]); return; }
+    render(s);
+    if (s.state !== "running") { clearInterval(timers[key]); onDone && onDone(s); }
+  };
+  tick(); timers[key] = setInterval(tick, 1000);
+}
+
+/* ---- tabs ---- */
+function showTab(name) {
+  for (const t of ["get", "deploy"]) $(t).classList.toggle("hidden", t !== name);
+  document.querySelectorAll("[data-tab]").forEach(b => b.classList.toggle("cds--tabs__nav-item--selected", b.dataset.tab === name));
+  if (name === "deploy") loadModels();
+}
+document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+
+/* ---- info ---- */
+async function loadInfo() {
+  info = await api("/api/info");
+  $("img").value = info.loader_image;
+  $("dirPk").textContent = info.models_dir;
+  const oc = info.oc ? `oc ${info.oc_version || ""} (${info.oc_bundled ? "mukana paketissa" : "järjestelmästä"})` : "oc: EI LÖYDY";
+  $("infoLine").innerHTML = `Mallikansio: <code>${esc(info.models_dir)}</code> &middot; ${esc(oc)} &middot; ${info.download_enabled ? "lataus päällä" : "offline-tila"}`;
+  $("offlineNote").classList.toggle("hidden", info.download_enabled);
+  if (!info.download_enabled) {
+    $("offlineText").textContent = info.offline
+      ? "Offline-tila: lataus Hugging Facesta on pois käytöstä. Tuo malli siirtopaketilla alla. (Käynnistä start.bat ilman offline-parametria ottaaksesi latauksen käyttöön.)"
+      : "Paketti huggingface_hub ei ole asennettu: lataus on pois käytöstä. Asenna pip install -r requirements-online.txt tai tuo malli siirtopaketilla alla.";
+  }
+  if (!info.oc) $("loginMsg").textContent = "oc-työkalua ei löydy. Kopioi oc kansioon tools/ tai aseta OC_BIN.";
+  showTab("get");
+  await loadPresets();
+  ["repo", "hfToken", "makeTar", "dl"].forEach(id => { $(id).disabled = !info.download_enabled; });
+}
+
+/* ---- download ---- */
+async function loadPresets() {
+  const presets = await api("/api/presets");
+  $("presets").innerHTML = presets.map(p => `
+    <div class="cds--tile item"><div class="info"><strong>${esc(p.label)}</strong>
+    <div class="muted">${esc(p.repo_id)} &middot; ${esc(p.note)}</div></div>
+    <button class="cds--btn cds--btn--primary cds--btn--sm" data-repo="${esc(p.repo_id)}" ${info.download_enabled ? "" : "disabled"}>Lataa</button></div>`).join("");
+  document.querySelectorAll("#presets button").forEach(b => b.onclick = () => startDownload(b.dataset.repo));
+}
+
+async function startDownload(repo) {
+  const body = { repo_id: repo, make_tar: $("makeTar").checked };
+  if ($("hfToken").value) body.token = $("hfToken").value;
+  try {
+    const j = await post("/api/downloads", body);
+    poll("dl", "/api/downloads/" + j.id, renderDownload, () => { loadPackages(); loadModels(); });
+  } catch (e) { $("dlStatus").innerHTML = notify("error", e.message); }
+}
+
+function renderDownload(s) {
+  const title = esc(s.repo_id);
+  const speed = s.elapsed_s > 1 ? s.downloaded_bytes / s.elapsed_s : 0;
+  const meta = `<div class="meta"><span>Kulunut: <b>${fmtT(s.elapsed_s)}</b></span>`;
+  if (s.state === "running") {
+    const tarPhase = s.total_bytes && s.downloaded_bytes >= s.total_bytes;
+    const pct = s.total_bytes ? Math.round(100 * s.downloaded_bytes / s.total_bytes) : 0;
+    const left = eta(s.downloaded_bytes, s.total_bytes, s.elapsed_s);
+    $("dlStatus").innerHTML = bar(title, pct, `${gb(s.downloaded_bytes)} / ${gb(s.total_bytes)} (${pct}%)${s.message ? " &middot; " + esc(s.message) : ""}`,
+        tarPhase && s.message ? "indeterminate" : "")
+      + meta + `<span>Nopeus: <b>${speed ? gb(speed) + "/s" : "–"}</b></span><span>Arvio jäljellä: <b>${fmtT(left)}</b></span></div>`;
+  } else if (s.state === "done") {
+    $("dlStatus").innerHTML = bar(title, 100, "Valmis", "finished") + meta + "</div>"
+      + `<div class="muted">Kansio: <code>${esc(s.path)}</code></div>`
+      + (s.tar_path ? `<div class="muted">Tar: <code>${esc(s.tar_path)}</code><br>SHA-256: <code>${esc(s.sha256)}</code></div>` : "");
+  } else {
+    $("dlStatus").innerHTML = bar(title, 0, esc(s.message || "Virhe"), "error") + meta + "</div>";
+  }
+}
+$("dl").onclick = () => { const v = $("repo").value.trim(); if (v) startDownload(v); };
+
+/* ---- packages ---- */
+async function loadPackages() {
+  const d = await api("/api/packages");
+  $("pkgList").innerHTML = d.packages.length ? d.packages.map(p => `
+    <div class="cds--tile item"><div class="info"><strong>${esc(p.name)}</strong>
+    <div class="muted">${gb(p.size_bytes)} &middot; ${p.has_sha256 ? '<span class="cds--tag cds--tag--green">SHA-256 löytyy</span>' : '<span class="cds--tag cds--tag--red">SHA-256 puuttuu</span>'}${p.imported ? ' <span class="cds--tag cds--tag--gray">purettu</span>' : ""}</div></div>
+    <button class="cds--btn cds--btn--primary cds--btn--sm" data-name="${esc(p.name)}" data-sha="${p.has_sha256}" ${p.imported ? "disabled" : ""}>${p.imported ? "Tuotu" : "Tuo"}</button></div>`).join("")
+    : `<p class="muted">Ei paketteja.</p>`;
+  document.querySelectorAll("#pkgList button:not([disabled])").forEach(b => b.onclick = () => importPackage(b.dataset.name, b.dataset.sha === "true"));
+}
+
+async function importPackage(name, hasSha) {
+  let skip = false;
+  if (!hasSha) {
+    if (!confirm("SHA-256-tiedostoa ei löydy. Tuodaanko paketti ilman eheystarkistusta?")) return;
+    skip = true;
+  }
+  try {
+    const j = await post("/api/packages/import", { name, skip_verify: skip });
+    poll("pk", "/api/packages/import/" + j.id, s => {
+      const meta = `<div class="meta"><span>Kulunut: <b>${fmtT(s.elapsed_s)}</b></span>`;
+      if (s.state === "error") { $("pkgStatus").innerHTML = bar(esc(name), 0, esc(s.message || "Virhe"), "error") + meta + "</div>"; return; }
+      if (s.state === "done") { $("pkgStatus").innerHTML = bar(esc(name), 100, "Valmis", "finished") + meta + "</div>"; return; }
+      const left = eta(s.progress, 100, s.stage_elapsed_s);
+      $("pkgStatus").innerHTML = bar(esc(name), s.progress, `${esc(s.stage)} (${s.progress}%)`)
+        + meta + `<span>Vaihe: <b>${fmtT(s.stage_elapsed_s)}</b></span><span>Arvio vaiheelle: <b>${fmtT(left)}</b></span></div>`;
+    }, () => { loadPackages(); loadModels(); });
+  } catch (e) { $("pkgStatus").innerHTML = notify("error", e.message); }
+}
+
+/* ---- deploy ---- */
+function setLogged(s) {
+  $("loggedOut").classList.toggle("hidden", s.logged_in);
+  $("loggedIn").classList.toggle("hidden", !s.logged_in);
+  $("deploySection").classList.toggle("hidden", !s.logged_in);
+  if (s.logged_in) { $("who").textContent = s.user; $("srv").textContent = s.server; loadModels(); }
+}
+
+async function loadModels() {
+  const d = await api("/api/models");
+  models = d.models;
+  $("modelsDir").textContent = "Kansio: " + d.dir;
+  $("model").innerHTML = models.length
+    ? models.map(m => `<option value="${esc(m.name)}">${esc(m.name)} (${gb(m.size_bytes)})</option>`).join("")
+    : `<option value="">Ei malleja (hae tai tuo malli ensin)</option>`;
+  suggestSize();
+}
+
+function suggestSize() {
+  const m = models.find(x => x.name === $("model").value);
+  if (m) $("size").value = Math.max(5, Math.ceil(m.size_bytes * 1.5 / 1073741824) + 1);
+}
+$("model").onchange = suggestSize;
+
+$("login").onclick = async () => {
+  $("loginMsg").textContent = "";
+  try { const s = await post("/api/login", { command: $("cmd").value }); $("cmd").value = ""; setLogged({ logged_in: true, ...s }); }
+  catch (e) { $("loginMsg").textContent = e.message; }
+};
+$("logout").onclick = async () => { await post("/api/logout"); setLogged({ logged_in: false }); };
+
+function renderDeploy(s) {
+  const total = s.steps.length, done = s.steps.filter(x => x.state === "done").length;
+  const kind = s.state === "error" ? "error" : s.state === "done" ? "finished" : "";
+  let html;
+  if (s.copy_total_bytes && s.steps[3].state !== "pending") {
+    const pct = Math.round(100 * s.copy_done_bytes / s.copy_total_bytes);
+    const stepEl = s.steps[3].elapsed_s;
+    const left = s.steps[3].state === "running" ? eta(s.copy_done_bytes, s.copy_total_bytes, stepEl) : null;
+    html = bar("Kopiointi PVC:lle", pct, `${gb(s.copy_done_bytes)} / ${gb(s.copy_total_bytes)} (${pct}%) &middot; arvio jäljellä: ${fmtT(left)}`,
+      s.steps[3].state === "error" ? "error" : s.steps[3].state === "done" ? "finished" : "");
+  } else html = "";
+  html += bar("Kokonaisuus", Math.round(100 * done / total), `${done} / ${total} vaihetta &middot; kulunut ${fmtT(s.elapsed_s)}`, kind);
+  $("copyBar").innerHTML = html;
+  $("steps").innerHTML = s.steps.map(x => `
+    <li class="${STEP_CLS[x.state]}">${SVG[STEP_CLS[x.state]]}
+      <span class="nm">${esc(x.name)}</span>
+      <span class="tm">${x.elapsed_s != null ? fmtT(x.elapsed_s) : ""}</span></li>`).join("");
+  $("log").textContent = s.log.join("\n");
+  $("log").scrollTop = $("log").scrollHeight;
+  $("msg").innerHTML = s.state === "error" ? notify("error", s.message || "Virhe") : "";
+}
+
+$("go").onclick = async () => {
+  $("next").classList.add("hidden");
+  const body = {
+    model_dir: $("model").value, namespace: $("ns").value.trim(), pvc_name: $("pvc").value.trim(),
+    pvc_size_gi: parseInt($("size").value, 10), loader_image: $("img").value.trim(),
+    create_namespace: $("mkns").checked, run_as_root: $("root").checked,
+  };
+  if ($("sc").value.trim()) body.storage_class = $("sc").value.trim();
+  try {
+    const j = await post("/api/deploys", body);
+    $("progress").classList.remove("hidden");
+    $("go").disabled = true;
+    poll("dp", "/api/deploys/" + j.id, renderDeploy, s => { $("go").disabled = false; if (s.state === "done") showNext(s.result); });
+  } catch (e) { alert(e.message); }
+};
+
+function showNext(r) {
+  $("next").innerHTML = `
+    <strong>Malli on PVC:llä. Tee seuraavaksi deployment OpenShift AI:ssa:</strong>
+    <ol class="next">
+      <li><strong>Models → Deploy model</strong> projektissa <code>${esc(r.namespace)}</code></li>
+      <li>Model location: <strong>Cluster storage</strong> → <code>${esc(r.pvc)}</code>, Model path: <code>${esc(r.model_path)}</code></li>
+      <li>Serving runtime: <strong>vLLM NVIDIA GPU ServingRuntime for KServe</strong> (versio, joka tukee mallia)</li>
+      <li>Hardware profile: 1 GPU. Runtime-argumentti esim. <code>--max-model-len=4096</code>, ympäristömuuttuja <code>HF_HUB_OFFLINE=1</code></li>
+      <li>Valitse <strong>Require token authentication</strong> ja tarvittaessa external route</li>
+      <li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v1/models -H "Authorization: Bearer &lt;token&gt;"</code></li>
+      <li>Kirjaa muistiin malli-id (<code>/v1/models</code>) ja base URL (<code>https://&lt;endpoint&gt;/v1</code>) gateway-liitosta varten</li>
+    </ol>`;
+  $("next").classList.remove("hidden");
+  $("next").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+loadInfo().then(() => { loadPackages(); return api("/api/session"); }).then(setLogged);
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+models/
+wheels/
+tools/
+dist/
+*.err
+*.out
+*.log
