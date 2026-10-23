@@ -74,7 +74,7 @@
     <h2>Lataa Hugging Facesta</h2>
     <div class="cds--form-item"><label class="cds--label" for="q">Hae mallia Hugging Facesta (esim. gemma fp8)</label>
       <div style="display:flex; gap:.5rem; width:100%">
-        <input class="cds--text-input" type="search" id="q" placeholder="Hakusana" style="flex:1">
+        <input class="cds--text-input" type="search" id="q" autocomplete="off" placeholder="Hakusana" style="flex:1">
         <select class="cds--select-input" id="sort" style="width:12rem" aria-label="Järjestys">
           <option value="downloads">Eniten ladatut</option>
           <option value="last_modified">Viimeksi päivitetyt</option>
@@ -84,7 +84,7 @@
         <button class="cds--btn cds--btn--ghost" id="clearSearch">Tyhjennä</button></div></div>
     <div id="searchResults" style="margin-bottom:1rem"></div>
     <div class="cds--form-item"><label class="cds--label" for="repo">Muu malli: repo ID (esim. organisaatio/malli)</label>
-      <input class="cds--text-input" type="text" id="repo" placeholder="RedHatAI/Qwen2-0.5B-Instruct-FP8"></div>
+      <input class="cds--text-input" type="text" id="repo" autocomplete="off" placeholder="RedHatAI/Qwen2-0.5B-Instruct-FP8"></div>
     <div class="cds--form-item"><label class="cds--label" for="hfToken">HF-token (valinnainen, vain gated-malleille)</label>
       <input class="cds--text-input" type="password" id="hfToken" autocomplete="off"></div>
     <button class="cds--btn cds--btn--primary" id="dl">Lataa</button>
@@ -124,16 +124,16 @@
   <div id="deploySection" class="hidden">
     <h2>Malli ja kohde</h2>
     <div class="cds--form-item"><label class="cds--label" for="model">Malli</label>
-      <div class="cds--select"><div class="cds--select-input__wrapper"><select class="cds--select-input" id="model"></select></div></div>
+      <div class="cds--select"><div class="cds--select-input__wrapper"><select class="cds--select-input" id="model" autocomplete="off"></select></div></div>
       <div class="muted" id="modelsDir"></div></div>
     <div class="row">
-      <div class="cds--form-item"><label class="cds--label" for="ns">Projekti (namespace)</label><input class="cds--text-input" type="text" id="ns" placeholder="llm"></div>
-      <div class="cds--form-item"><label class="cds--label" for="pvc">PVC:n nimi</label><input class="cds--text-input" type="text" id="pvc" value="model-storage"></div>
-      <div class="cds--form-item"><label class="cds--label" for="size">PVC:n koko (Gi)</label><input class="cds--text-input" type="number" id="size" min="1" max="2000" value="5"></div>
+      <div class="cds--form-item"><label class="cds--label" for="ns">Projekti (namespace)</label><input class="cds--text-input" type="text" id="ns" autocomplete="off" placeholder="llm"></div>
+      <div class="cds--form-item"><label class="cds--label" for="pvc">PVC:n nimi</label><input class="cds--text-input" type="text" id="pvc" autocomplete="off" value="model-storage"></div>
+      <div class="cds--form-item"><label class="cds--label" for="size">PVC:n koko (Gi)</label><input class="cds--text-input" type="number" id="size" autocomplete="off" min="1" max="2000" value="5"></div>
     </div>
     <div class="row">
-      <div class="cds--form-item"><label class="cds--label" for="sc">Storage class (tyhjä = oletus)</label><input class="cds--text-input" type="text" id="sc"></div>
-      <div class="cds--form-item"><label class="cds--label" for="img">Apupodin image (air-gapped: oma rekisteri, jossa tar)</label><input class="cds--text-input" type="text" id="img"></div>
+      <div class="cds--form-item"><label class="cds--label" for="sc">Storage class (tyhjä = oletus)</label><input class="cds--text-input" type="text" id="sc" autocomplete="off"></div>
+      <div class="cds--form-item"><label class="cds--label" for="img">Apupodin image (air-gapped: oma rekisteri, jossa tar)</label><input class="cds--text-input" type="text" id="img" autocomplete="off"></div>
     </div>
     <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="mkns">
       <label class="cds--checkbox-label" for="mkns"><span class="cds--checkbox-label-text">Luo projekti, jos sitä ei ole</span></label></div>
