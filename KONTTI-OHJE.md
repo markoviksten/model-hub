@@ -19,6 +19,20 @@ build -> run -> lataa mallit UI:ssa            docker load -> run
 | Levytila | mallit + sama uudelleen exportissa (noin 2–3 × mallien koko) | arkiston koko + purettu image (noin 2 × mallien koko) |
 | Pääsy OpenShiftiin | ei tarvita | kyllä (`oc login`) |
 
+## Pikakomennot (bash)
+
+Kansiossa `model_hub` (Git Bash, Linux, macOS, WSL):
+
+| Komento | Mitä tekee |
+|---|---|
+| `./start.sh` | Rakentaa imagen tarvittaessa, luo kontin ensimmäisellä kerralla, muuten käynnistää olemassa olevan (mallit säilyvät). |
+| `./stop.sh` | Pysäyttää kontin (`docker stop`). Mallit säilyvät. Ei koskaan poista konttia. |
+| `./export.sh` | Tekee kopion siirtoa varten: `dist/model-hub-with-models.tar.gz` + `.sha256`. Kopioi **molemmat** tikulle. Valinnat: `--no-compress`, `--keep-online`, `-c <kontti>`, `-t <image:tagi>`. |
+
+Air-gapped-päässä: `MODEL_HUB_IMAGE=model-hub:airgap MODEL_HUB_LOADER_IMAGE=<osoite> ./start.sh` (osoite: kohta 2.4) tai `docker run` kuten alla. Portin vaihto: `MODEL_HUB_PORT=8790 ./start.sh`. Podman: `ENGINE=podman ./start.sh`.
+
+Windowsissa shellin ja Rancher/Docker Desktopin täytyy ajaa samalla oikeustasolla (molemmat tavallisena käyttäjänä tai molemmat järjestelmänvalvojana), muuten `docker` antaa virheen *Access is denied*.
+
 ## Vaihe 1 – lataus yhdistetyllä koneella
 
 ### 1.1 Rakenna ja käynnistä
