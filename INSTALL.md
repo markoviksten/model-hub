@@ -118,7 +118,7 @@ Image toimii OpenShiftin satunnaisella UID:llä. Sovelluksessa ei ole autentikoi
 
 ## 4. Ensimmäinen käyttö
 
-1. **1. Hae malli**: lataa (yhdistetty) tai tuo paketti (air-gapped).
+1. **1. Hae malli**: lataa (yhdistetty) tai tuo paketti (air-gapped). Mallin voi valita valmiista listasta, hakea Hugging Facesta hakusanalla (**Hae**, max 20 tulosta latausmäärän mukaan; **Valitse** täyttää repo ID:n, **Lataa** aloittaa latauksen) tai kirjoittaa repo ID:n käsin. Haku vaatii yhteyden huggingface.co:hon eikä toimi offline-tilassa.
 2. **2. Vie OpenShift AI:hin**: liitä OpenShift-konsolin *Copy login command* -komento ja paina **Kirjaudu**.
 3. Valitse malli, projekti, PVC:n nimi ja koko. Koko ehdotetaan automaattisesti.
 4. Paina **Kopioi malli PVC:lle** ja seuraa etenemistä (aika, nopeus ja arvio jäljellä).

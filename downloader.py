@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 import settings
@@ -36,6 +36,7 @@ log = logging.getLogger("model_hub.downloader")
 ENABLED = HF_INSTALLED and not settings.OFFLINE
 REPO_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 MAX_JOBS_KEPT = 50
+SEARCH_LIMIT = 20
 
 PRESETS = [
     {"id": "qwen2-fp8", "label": "Qwen2 0.5B Instruct FP8", "repo_id": "RedHatAI/Qwen2-0.5B-Instruct-FP8",
@@ -142,6 +143,34 @@ def _to_status(job: dict) -> JobStatus:
 async def get_presets() -> list[dict]:
     """Return the built-in model presets."""
     return PRESETS
+
+
+class SearchHit(BaseModel):
+    """One Hugging Face search result."""
+
+    repo_id: str
+    downloads: int = 0
+    likes: int = 0
+    task: Optional[str] = None
+
+
+@router.get("/search", response_model=list[SearchHit])
+async def search_models(q: str = Query(..., min_length=2, max_length=100)) -> list[SearchHit]:
+    """Search public Hugging Face models by text, most downloaded first (max 20)."""
+    if not ENABLED:
+        raise HTTPException(503, "Haku on pois käytöstä (offline-tila tai huggingface_hub puuttuu).")
+    try:
+        models = await asyncio.to_thread(
+            lambda: list(HfApi().list_models(search=q, sort="downloads", limit=SEARCH_LIMIT))
+        )
+    except Exception:  # noqa: BLE001
+        log.exception("Hugging Face search failed")
+        raise HTTPException(502, "Haku epäonnistui. Katso palvelimen loki.") from None
+    return [
+        SearchHit(repo_id=m.id, downloads=m.downloads or 0, likes=m.likes or 0, task=m.pipeline_tag)
+        for m in models
+        if REPO_ID_RE.match(m.id)
+    ]
 
 
 @router.post("/downloads", response_model=JobStatus, status_code=202)

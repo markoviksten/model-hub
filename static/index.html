@@ -74,6 +74,11 @@
   <div id="dlSection">
     <h2>Lataa Hugging Facesta</h2>
     <div id="presets"></div>
+    <div class="cds--form-item"><label class="cds--label" for="q">Hae mallia Hugging Facesta (esim. gemma fp8)</label>
+      <div style="display:flex; gap:.5rem; width:100%">
+        <input class="cds--text-input" type="search" id="q" placeholder="Hakusana" style="flex:1">
+        <button class="cds--btn cds--btn--secondary" id="search">Hae</button></div></div>
+    <div id="searchResults" style="margin-bottom:1rem"></div>
     <div class="cds--form-item"><label class="cds--label" for="repo">Muu malli: repo ID (esim. organisaatio/malli)</label>
       <input class="cds--text-input" type="text" id="repo" placeholder="RedHatAI/Qwen2-0.5B-Instruct-FP8"></div>
     <div class="cds--form-item"><label class="cds--label" for="hfToken">HF-token (valinnainen, vain gated-malleille)</label>
@@ -221,7 +226,7 @@ async function loadInfo() {
   if (!info.oc) $("loginMsg").textContent = "oc-työkalua ei löydy. Kopioi oc kansioon tools/ tai aseta OC_BIN.";
   showTab("get");
   await loadPresets();
-  ["repo", "hfToken", "makeTar", "dl"].forEach(id => { $(id).disabled = !info.download_enabled; });
+  ["q", "search", "repo", "hfToken", "makeTar", "dl"].forEach(id => { $(id).disabled = !info.download_enabled; });
 }
 
 /* ---- download ---- */
@@ -232,6 +237,24 @@ async function loadPresets() {
     <div class="muted">${esc(p.repo_id)} &middot; ${esc(p.note)}</div></div>
     <button class="cds--btn cds--btn--primary cds--btn--sm" data-repo="${esc(p.repo_id)}" ${info.download_enabled ? "" : "disabled"}>Lataa</button></div>`).join("");
   document.querySelectorAll("#presets button").forEach(b => b.onclick = () => startDownload(b.dataset.repo));
+}
+
+/** Search Hugging Face and list hits; "Valitse" fills the repo field, "Lataa" starts the download. */
+async function searchModels() {
+  const q = $("q").value.trim();
+  if (q.length < 2) return;
+  $("searchResults").innerHTML = '<span class="muted">Haetaan...</span>';
+  try {
+    const hits = await api("/api/search?q=" + encodeURIComponent(q));
+    $("searchResults").innerHTML = hits.length ? hits.map(h => `
+      <div class="cds--tile item"><div class="info"><strong>${esc(h.repo_id)}</strong>
+      <div class="muted">${h.task ? esc(h.task) + " &middot; " : ""}${h.downloads.toLocaleString("fi-FI")} latausta &middot; ${h.likes.toLocaleString("fi-FI")} tykkäystä</div></div>
+      <button class="cds--btn cds--btn--secondary cds--btn--sm" data-pick="${esc(h.repo_id)}">Valitse</button>
+      <button class="cds--btn cds--btn--primary cds--btn--sm" data-repo="${esc(h.repo_id)}">Lataa</button></div>`).join("")
+      : '<span class="muted">Ei tuloksia.</span>';
+    document.querySelectorAll("#searchResults [data-pick]").forEach(b => b.onclick = () => { $("repo").value = b.dataset.pick; });
+    document.querySelectorAll("#searchResults [data-repo]").forEach(b => b.onclick = () => startDownload(b.dataset.repo));
+  } catch (e) { $("searchResults").innerHTML = notify("error", e.message); }
 }
 
 async function startDownload(repo) {
@@ -263,6 +286,8 @@ function renderDownload(s) {
   }
 }
 $("dl").onclick = () => { const v = $("repo").value.trim(); if (v) startDownload(v); };
+$("search").onclick = searchModels;
+$("q").onkeydown = e => { if (e.key === "Enter") searchModels(); };
 
 /* ---- packages ---- */
 async function loadPackages() {
