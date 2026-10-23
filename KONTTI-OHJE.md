@@ -29,7 +29,7 @@ Kansiossa `model_hub` (Git Bash, Linux, macOS, WSL):
 | `./stop.sh` | Pysäyttää kontin (`docker stop`). Mallit säilyvät. Ei koskaan poista konttia. |
 | `./export.sh` | Tekee kopion siirtoa varten: `dist/model-hub-with-models.tar.gz` + `.sha256`. Kopioi **molemmat** tikulle. Valinnat: `--no-compress`, `--keep-online`, `-c <kontti>`, `-t <image:tagi>`. |
 
-Air-gapped-päässä: `MODEL_HUB_IMAGE=model-hub:airgap MODEL_HUB_LOADER_IMAGE=<osoite> ./start.sh` (osoite: kohta 2.4) tai `docker run` kuten alla. Portin vaihto: `MODEL_HUB_PORT=8790 ./start.sh`. Podman: `ENGINE=podman ./start.sh`.
+Air-gapped-päässä: `MODEL_HUB_IMAGE=model-hub:airgap ./start.sh` (apupodin image annetaan vasta UI:ssa, kohta 2.4) tai `docker run` kuten alla. Portin vaihto: `MODEL_HUB_PORT=8790 ./start.sh`. Podman: `ENGINE=podman ./start.sh`.
 
 Windowsissa shellin ja Rancher/Docker Desktopin täytyy ajaa samalla oikeustasolla (molemmat tavallisena käyttäjänä tai molemmat järjestelmänvalvojana), muuten `docker` antaa virheen *Access is denied*.
 
@@ -116,7 +116,7 @@ Latauksen jälkeen `.tar.gz`-tiedoston voi poistaa levyltä tilan säästämisek
 Helpoin tapa (`start.sh` samassa kansiossa):
 
 ```bash
-MODEL_HUB_IMAGE=model-hub:airgap MODEL_HUB_LOADER_IMAGE=<osoite> bash ./start.sh
+MODEL_HUB_IMAGE=model-hub:airgap bash ./start.sh
 ```
 
 (`bash ./start.sh` toimii, vaikka tikulta kopioitu tiedosto ei olisi suoritettava.)
@@ -125,11 +125,10 @@ Tai ilman skriptiä:
 
 ```bash
 docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 \
-  -e MODEL_HUB_LOADER_IMAGE=<osoite> \
   model-hub:airgap
 ```
 
-`<osoite>` on apupodin image klusterin rekisterissä, esim. `image-registry.openshift-image-registry.svc:5000/<projekti>/ubi9:latest`. Se selitetään kohdassa 2.4 (tee 2.4 ensin, jos imagea ei ole vielä klusterissa).
+Käynnistyksessä ei anneta osoitteita. Apupodin image ja projekti annetaan vasta UI:n välilehdellä 2 (*Apupodin image* -kenttä); mitä siihen kirjoitetaan, selitetään kohdassa 2.4.
 
 Avaa http://127.0.0.1:8767. Etusivun rivillä lukee, että lataus on pois käytöstä (offline). Oikeassa sarakkeessa näkyvät kontin mallit.
 
@@ -182,7 +181,7 @@ docker push <reitti>/<projekti>/ubi9:latest
 
 Jos reittiä ei ole, ylläpitäjä ottaa sen käyttöön: `oc patch configs.imageregistry.operator.openshift.io/cluster --type merge -p '{"spec":{"defaultRoute":true}}'`.
 
-Tämän jälkeen käytä podin sisäistä osoitetta:
+Tämän jälkeen kirjoita UI:n *Apupodin image* -kenttään podin sisäinen osoite `image-registry.openshift-image-registry.svc:5000/<projekti>/ubi9:latest`. Vaihtoehtoisesti sen voi asettaa oletukseksi käynnistyksessä:
 
 ```powershell
 docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 `
@@ -190,7 +189,7 @@ docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 `
   model-hub:airgap
 ```
 
-Osoite voidaan myös kirjoittaa UI:n *Apupodin image* -kenttään. Jos image on eri projektissa kuin kohdeprojekti, anna kohdeprojektille lupa hakea se: `oc policy add-role-to-group system:image-puller system:serviceaccounts:<kohdeprojekti> -n <imagen-projekti>`.
+Osoite kirjoitetaan UI:n *Apupodin image* -kenttään (projekti tiedetään vasta kopioinnin yhteydessä). Jos image on eri projektissa kuin kohdeprojekti, anna kohdeprojektille lupa hakea se: `oc policy add-role-to-group system:image-puller system:serviceaccounts:<kohdeprojekti> -n <imagen-projekti>`.
 
 Jos yrityksellänne on jo oma peilirekisteri (`oc-mirror`, ImageDigestMirrorSet), pyydä ylläpitoa lisäämään `ubi9/ubi` peiliin ja käytä sen osoitetta.
 

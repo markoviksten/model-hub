@@ -216,18 +216,25 @@ docker load -i model-hub-with-models.tar.gz        # podman load -i ...
 docker images | grep model-hub                      # näyttää model-hub:airgap</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <p>Windows PowerShell: <code>(Get-FileHash model-hub-with-models.tar.gz -Algorithm SHA256).Hash.ToLower()</code>, vertaa <code>.sha256</code>-tiedostoon. Latauksen jälkeen <code>.tar.gz</code> voi poistaa.</p>
     <h3 class="boxh">5. Käynnistä Model Hub</h3>
-    <div class="cmdbox"><pre>MODEL_HUB_IMAGE=model-hub:airgap MODEL_HUB_LOADER_IMAGE=&lt;osoite&gt; bash ./start.sh</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    <div class="cmdbox"><pre>MODEL_HUB_IMAGE=model-hub:airgap bash ./start.sh</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <p>Ilman skriptiä:</p>
     <div class="cmdbox"><pre>docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 \
-  -e MODEL_HUB_LOADER_IMAGE=&lt;osoite&gt; \
   model-hub:airgap</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
-    <p><code>&lt;osoite&gt;</code> on apupodin (UBI9, jossa <code>tar</code>) image <strong>klusterin</strong> rekisterissä, esim. <code>image-registry.openshift-image-registry.svc:5000/&lt;projekti&gt;/ubi9:latest</code>. Jos imagea ei ole klusterissa, tuo se ensin: katso (i)-ohjeen kohta <em>Loader-image</em>. Avaa sitten <code>http://127.0.0.1:8767</code>.</p>
+    <p>Avaa sitten selaimessa <code>http://127.0.0.1:8767</code>. Mitään osoitetta ei tarvitse antaa käynnistyksessä: apupodin image ja projekti annetaan vasta vaiheessa 6.</p>
     <h3 class="boxh">6. Vie malli OpenShift AI:hin</h3>
     <ol class="dlglist">
       <li>Tässä välilehdessä: liitä <em>Copy login command</em> ja paina <strong>Kirjaudu</strong>.</li>
-      <li>Valitse malli, projekti, PVC:n nimi ja koko.</li>
+      <li>Valitse malli, <strong>projekti</strong>, PVC:n nimi ja koko.</li>
+      <li>Täytä <strong>Apupodin image</strong> -kenttä (ks. alla).</li>
       <li>Paina <strong>Kopioi malli PVC:lle</strong> ja seuraa etenemistä.</li>
     </ol>
+    <p><strong>Apupodin image:</strong> kopioinnin ajaksi klusteriin käynnistyy pieni apupodi (UBI9-image, jossa on <code>tar</code>). Air-gapped-klusteri ei pääse internetiin, joten kentässä pitää olla image, jonka <strong>klusteri</strong> voi hakea omasta rekisteristään. Kirjoita kenttään jokin näistä:</p>
+    <ul class="dlglist">
+      <li>Klusterin sisäinen rekisteri: <code>image-registry.openshift-image-registry.svc:5000/&lt;projekti&gt;/ubi9:latest</code>, missä <code>&lt;projekti&gt;</code> on sama projekti kuin yllä olevassa Projekti-kentässä. Edellyttää, että UBI9 on tuotu sinne.</li>
+      <li>Yrityksen peilirekisteri: esim. <code>quay.mycorp.local/mirror/ubi9/ubi:latest</code> (kysy osoite ylläpidolta).</li>
+      <li>Klusteri pääsee internetiin: jätä oletus <code>registry.access.redhat.com/ubi9/ubi:latest</code>.</li>
+    </ul>
+    <p>Jos sopivaa imagea ei ole klusterissa, tuo se ensin: katso (i)-ohjeen kohta <em>Loader-image</em>.</p>
     <h3 class="boxh">7. Deploy Model OpenShift AI:ssa</h3>
     <p>Tee deployment OpenShift AI:n konsolissa sovelluksen näyttämien ohjeiden mukaan: <em>Models → Deploy model</em>, Cluster storage (PVC) ja vLLM-runtime.</p>
     </div>
