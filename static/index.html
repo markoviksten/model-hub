@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fi">
 <head>
 <meta charset="utf-8">
@@ -93,6 +93,8 @@
   .exportinner p { margin: .5rem 0; }
   .exportinner pre { max-height: none; margin: .5rem 0; }
   ul.dlglist { list-style: disc; padding-left: 1.5rem; margin: .5rem 0; }
+  ol.dlglist { list-style: decimal; padding-left: 1.5rem; margin: .5rem 0; }
+  ol.dlglist li { margin: .25rem 0; }
   .cmdbox { position: relative; }
   .cmdbox pre { padding-right: 5.5rem; }
   .cmdbox .copybtn { position: absolute; top: .5rem; right: .5rem; min-block-size: 1.75rem; block-size: 1.75rem; padding: 0 .75rem !important; font-size: .75rem; }
@@ -155,8 +157,8 @@
 </section>
 
 <section id="deploy" class="hidden">
-  <details class="exportbox" id="exportBox" open>
-    <summary>Vie air-gappediin: export-komennot ja siirto</summary>
+  <details class="exportbox" id="exportBox">
+    <summary>Vie air-gappediin: export, siirto ja käyttöönotto</summary>
     <div class="exportinner">
 <p id="exportSummary" class="muted"></p>
     <h3 class="boxh">1. Aja komento kontin ulkopuolella</h3>
@@ -178,8 +180,31 @@ cd dist && sha256sum model-hub-with-models.tar.gz > model-hub-with-models.tar.gz
       <li><code>start.sh</code> kansiosta <code>model_hub</code> (suositus)</li>
     </ul>
     <p>Tikku: exFAT tai NTFS (FAT32 ei salli yli 4 GB:n tiedostoja). Vapaata tilaa tarvitaan vähintään arkiston koko.</p>
-    <p>Air-gapped-päässä toimi ohjeen mukaan: avaa <strong>(i)</strong>-ohje ja katso kohta <em>Vaihe 2</em>.</p>
     <p class="muted"><strong>Varoitus:</strong> älä poista konttia (<code>docker rm</code>) ennen kuin siirto on varmistettu. Se poistaa myös mallit.</p>
+
+    <h3 class="boxh">Vaihe 2: air-gapped-kone</h3>
+    <p>Koneella tarvitaan Docker tai Podman sekä verkkoyhteys OpenShift-klusterin API:in (<code>oc</code> on kontin sisällä).</p>
+    <h3 class="boxh">4. Kopioi tikulta, tarkista ja lataa</h3>
+    <p>Kopioi tikun tiedostot omaan kansioon (esim. <code>~/model-hub-siirto</code>; vapaata tilaa arkiston koko kertaa kaksi). Tarkista summa ja lataa image:</p>
+    <div class="cmdbox"><pre>cd ~/model-hub-siirto
+sha256sum -c model-hub-with-models.tar.gz.sha256   # pitää tulostaa: OK
+docker load -i model-hub-with-models.tar.gz        # podman load -i ...
+docker images | grep model-hub                      # näyttää model-hub:airgap</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    <p>Windows PowerShell: <code>(Get-FileHash model-hub-with-models.tar.gz -Algorithm SHA256).Hash.ToLower()</code>, vertaa <code>.sha256</code>-tiedostoon. Latauksen jälkeen <code>.tar.gz</code> voi poistaa.</p>
+    <h3 class="boxh">5. Käynnistä</h3>
+    <div class="cmdbox"><pre>MODEL_HUB_IMAGE=model-hub:airgap MODEL_HUB_LOADER_IMAGE=&lt;osoite&gt; bash ./start.sh</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    <p>Ilman skriptiä:</p>
+    <div class="cmdbox"><pre>docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 \
+  -e MODEL_HUB_LOADER_IMAGE=&lt;osoite&gt; \
+  model-hub:airgap</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    <p><code>&lt;osoite&gt;</code> on apupodin (UBI9, jossa <code>tar</code>) image <strong>klusterin</strong> rekisterissä, esim. <code>image-registry.openshift-image-registry.svc:5000/&lt;projekti&gt;/ubi9:latest</code>. Jos imagea ei ole klusterissa, tuo se ensin: katso (i)-ohjeen kohta <em>Loader-image</em>. Avaa sitten <code>http://127.0.0.1:8767</code>.</p>
+    <h3 class="boxh">6. Vie malli OpenShift AI:hin</h3>
+    <ol class="dlglist">
+      <li>Tässä välilehdessä: liitä <em>Copy login command</em> ja paina <strong>Kirjaudu</strong>.</li>
+      <li>Valitse malli, projekti, PVC:n nimi ja koko.</li>
+      <li>Paina <strong>Kopioi malli PVC:lle</strong> ja seuraa etenemistä.</li>
+      <li>Tee deployment OpenShift AI:ssa sovelluksen näyttämien ohjeiden mukaan (<em>Models → Deploy model</em>, Cluster storage, vLLM-runtime).</li>
+    </ol>
     </div>
   </details>
 
