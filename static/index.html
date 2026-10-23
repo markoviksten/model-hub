@@ -77,7 +77,13 @@
     <div class="cds--form-item"><label class="cds--label" for="q">Hae mallia Hugging Facesta (esim. gemma fp8)</label>
       <div style="display:flex; gap:.5rem; width:100%">
         <input class="cds--text-input" type="search" id="q" placeholder="Hakusana" style="flex:1">
-        <button class="cds--btn cds--btn--secondary" id="search">Hae</button></div></div>
+        <select class="cds--select-input" id="sort" style="width:12rem" aria-label="Järjestys">
+          <option value="downloads">Eniten ladatut</option>
+          <option value="last_modified">Viimeksi päivitetyt</option>
+          <option value="created_at">Uusimmat</option>
+          <option value="likes">Eniten tykätyt</option></select>
+        <button class="cds--btn cds--btn--secondary" id="search">Hae</button>
+        <button class="cds--btn cds--btn--ghost" id="clearSearch">Tyhjennä</button></div></div>
     <div id="searchResults" style="margin-bottom:1rem"></div>
     <div class="cds--form-item"><label class="cds--label" for="repo">Muu malli: repo ID (esim. organisaatio/malli)</label>
       <input class="cds--text-input" type="text" id="repo" placeholder="RedHatAI/Qwen2-0.5B-Instruct-FP8"></div>
@@ -95,6 +101,16 @@
   <p class="muted">Kopioi <code>malli.tar</code> ja <code>malli.tar.sha256</code> kansioon <code id="dirPk"></code>. Sovellus tarkistaa summan ja purkaa paketin.</p>
   <div id="pkgList"></div>
   <div id="pkgStatus" class="jobbox"></div>
+
+  <h2>Levytila ja tallennetut mallit</h2>
+  <div id="diskBox"></div>
+  <div class="cds--form-item"><label class="cds--label" for="calcGb">Levytilalaskuri: mahtuuko malli? Syötä mallin koko (GB)</label>
+    <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
+      <input class="cds--text-input" type="number" min="0" step="0.1" id="calcGb" placeholder="esim. 14.3" style="width:10rem">
+      <label style="font-size:.875rem"><input type="checkbox" id="calcTar"> myös .tar-paketti (kaksinkertainen tila)</label>
+      <span id="calcOut" class="muted"></span></div></div>
+  <div id="storeList"></div>
+  <div id="storeMsg"></div>
 </section>
 
 <section id="deploy" class="hidden">
@@ -226,7 +242,7 @@ async function loadInfo() {
   if (!info.oc) $("loginMsg").textContent = "oc-työkalua ei löydy. Kopioi oc kansioon tools/ tai aseta OC_BIN.";
   showTab("get");
   await loadPresets();
-  ["q", "search", "repo", "hfToken", "makeTar", "dl"].forEach(id => { $(id).disabled = !info.download_enabled; });
+  ["q", "sort", "search", "clearSearch", "repo", "hfToken", "makeTar", "dl"].forEach(id => { $(id).disabled = !info.download_enabled; });
 }
 
 /* ---- download ---- */
@@ -239,22 +255,39 @@ async function loadPresets() {
   document.querySelectorAll("#presets button").forEach(b => b.onclick = () => startDownload(b.dataset.repo));
 }
 
-/** Search Hugging Face and list hits; "Valitse" fills the repo field, "Lataa" starts the download. */
-async function searchModels() {
-  const q = $("q").value.trim();
-  if (q.length < 2) return;
+let searchState = { q: "", sort: "downloads", page: 0 };
+
+/** Search Hugging Face (10 hits/page) and list them; "Valitse" fills the repo field, "Lataa" downloads. */
+async function searchModels(page = 0, fresh = true) {
+  if (fresh) searchState = { q: $("q").value.trim(), sort: $("sort").value, page: 0 };
+  if (searchState.q.length < 2) return;
+  searchState.page = page;
   $("searchResults").innerHTML = '<span class="muted">Haetaan...</span>';
   try {
-    const hits = await api("/api/search?q=" + encodeURIComponent(q));
-    $("searchResults").innerHTML = hits.length ? hits.map(h => `
+    const d = await api(`/api/search?q=${encodeURIComponent(searchState.q)}&sort=${searchState.sort}&page=${page}`);
+    const rows = d.items.map(h => `
       <div class="cds--tile item"><div class="info"><strong>${esc(h.repo_id)}</strong>
-      <div class="muted">${h.task ? esc(h.task) + " &middot; " : ""}${h.downloads.toLocaleString("fi-FI")} latausta &middot; ${h.likes.toLocaleString("fi-FI")} tykkäystä</div></div>
+      <div class="muted">${h.task ? esc(h.task) + " &middot; " : ""}${h.downloads.toLocaleString("fi-FI")} latausta &middot; ${h.likes.toLocaleString("fi-FI")} tykkäystä
+      &middot; luotu ${esc(h.created || "–")} &middot; päivitetty ${esc(h.modified || "–")}</div></div>
       <button class="cds--btn cds--btn--secondary cds--btn--sm" data-pick="${esc(h.repo_id)}">Valitse</button>
-      <button class="cds--btn cds--btn--primary cds--btn--sm" data-repo="${esc(h.repo_id)}">Lataa</button></div>`).join("")
-      : '<span class="muted">Ei tuloksia.</span>';
+      <button class="cds--btn cds--btn--primary cds--btn--sm" data-repo="${esc(h.repo_id)}">Lataa</button></div>`).join("");
+    const pager = (d.page > 0 || d.has_next) ? `<div style="display:flex; gap:.5rem; align-items:center; margin:.5rem 0">
+      <button class="cds--btn cds--btn--tertiary cds--btn--sm" id="pgPrev" ${d.page > 0 ? "" : "disabled"}>‹ Edellinen</button>
+      <span class="muted">Sivu ${d.page + 1}</span>
+      <button class="cds--btn cds--btn--tertiary cds--btn--sm" id="pgNext" ${d.has_next ? "" : "disabled"}>Seuraava ›</button></div>` : "";
+    $("searchResults").innerHTML = d.items.length ? rows + pager : '<span class="muted">Ei tuloksia.</span>';
     document.querySelectorAll("#searchResults [data-pick]").forEach(b => b.onclick = () => { $("repo").value = b.dataset.pick; });
     document.querySelectorAll("#searchResults [data-repo]").forEach(b => b.onclick = () => startDownload(b.dataset.repo));
+    if ($("pgPrev")) $("pgPrev").onclick = () => searchModels(d.page - 1, false);
+    if ($("pgNext")) $("pgNext").onclick = () => searchModels(d.page + 1, false);
   } catch (e) { $("searchResults").innerHTML = notify("error", e.message); }
+}
+
+/** Clear the search box and the result list. */
+function clearSearch() {
+  $("q").value = "";
+  $("searchResults").innerHTML = "";
+  searchState = { q: "", sort: "downloads", page: 0 };
 }
 
 async function startDownload(repo) {
@@ -262,7 +295,7 @@ async function startDownload(repo) {
   if ($("hfToken").value) body.token = $("hfToken").value;
   try {
     const j = await post("/api/downloads", body);
-    poll("dl", "/api/downloads/" + j.id, renderDownload, () => { loadPackages(); loadModels(); });
+    poll("dl", "/api/downloads/" + j.id, renderDownload, () => { loadPackages(); loadModels(); loadStorage(); });
   } catch (e) { $("dlStatus").innerHTML = notify("error", e.message); }
 }
 
@@ -286,8 +319,52 @@ function renderDownload(s) {
   }
 }
 $("dl").onclick = () => { const v = $("repo").value.trim(); if (v) startDownload(v); };
-$("search").onclick = searchModels;
+$("search").onclick = () => searchModels();
+$("clearSearch").onclick = clearSearch;
 $("q").onkeydown = e => { if (e.key === "Enter") searchModels(); };
+
+/* ---- storage ---- */
+let storage = { free: 0 };
+
+/** Load disk usage and stored models/packages, then render them. */
+async function loadStorage() {
+  storage = await api("/api/storage");
+  const pct = storage.total ? Math.round(100 * storage.used / storage.total) : 0;
+  $("diskBox").innerHTML = bar("Levytila (" + esc(storage.dir) + ")", pct,
+    `Vapaana <b>${gb(storage.free)}</b> / yhteensä ${gb(storage.total)} &middot; mallit ja paketit käyttävät ${gb(storage.models_bytes)}`,
+    pct >= 90 ? "error" : "");
+  $("storeList").innerHTML = storage.items.length ? storage.items.map(i => `
+    <div class="cds--tile item"><div class="info"><strong>${esc(i.name)}${i.kind === "package" ? ".tar" : ""}</strong>
+    <div class="muted"><span class="cds--tag cds--tag--${i.kind === "model" ? "blue" : "gray"}">${i.kind === "model" ? "malli (purettu)" : "siirtopaketti"}</span> ${gb(i.size_bytes)}</div></div>
+    <button class="cds--btn cds--btn--danger--tertiary cds--btn--sm" data-del="${esc(i.name)}" data-kind="${i.kind}">Poista</button></div>`).join("")
+    : '<p class="muted">Ei tallennettuja malleja.</p>';
+  document.querySelectorAll("#storeList [data-del]").forEach(b => b.onclick = () => deleteItem(b.dataset.kind, b.dataset.del));
+  calcSpace();
+}
+
+/** Show whether a model of the entered size fits in the free disk space. */
+function calcSpace() {
+  const gbIn = parseFloat($("calcGb").value);
+  if (!gbIn || gbIn <= 0) { $("calcOut").textContent = ""; return; }
+  const need = gbIn * 1e9 * ($("calcTar").checked ? 2 : 1);
+  const left = storage.free - need;
+  $("calcOut").innerHTML = left >= 0
+    ? `<span class="cds--tag cds--tag--green">Mahtuu</span> tarvitaan ${gb(need)}, jää vapaaksi ${gb(left)}`
+    : `<span class="cds--tag cds--tag--red">Ei mahdu</span> tarvitaan ${gb(need)}, puuttuu ${gb(-left)}. Poista malleja tai kasvata levytilaa (ohje: INSTALL.md).`;
+}
+
+/** Delete a model folder or a package after confirmation. */
+async function deleteItem(kind, name) {
+  const what = kind === "model" ? `mallikansio ${name}` : `paketti ${name}.tar (ja .sha256)`;
+  if (!confirm(`Poistetaanko ${what}? Tätä ei voi perua.`)) return;
+  try {
+    const r = await api(`/api/storage/${kind === "model" ? "models" : "packages"}/${encodeURIComponent(name)}`, { method: "DELETE" });
+    $("storeMsg").innerHTML = notify("success", `Poistettu ${r.deleted}, vapautui ${gb(r.freed_bytes)}.`);
+  } catch (e) { $("storeMsg").innerHTML = notify("error", e.message); }
+  loadStorage(); loadPackages(); loadModels();
+}
+$("calcGb").oninput = calcSpace;
+$("calcTar").onchange = calcSpace;
 
 /* ---- packages ---- */
 async function loadPackages() {
@@ -315,7 +392,7 @@ async function importPackage(name, hasSha) {
       const left = eta(s.progress, 100, s.stage_elapsed_s);
       $("pkgStatus").innerHTML = bar(esc(name), s.progress, `${esc(s.stage)} (${s.progress}%)`)
         + meta + `<span>Vaihe: <b>${fmtT(s.stage_elapsed_s)}</b></span><span>Arvio vaiheelle: <b>${fmtT(left)}</b></span></div>`;
-    }, () => { loadPackages(); loadModels(); });
+    }, () => { loadPackages(); loadModels(); loadStorage(); });
   } catch (e) { $("pkgStatus").innerHTML = notify("error", e.message); }
 }
 
@@ -404,7 +481,7 @@ function showNext(r) {
   $("next").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-loadInfo().then(() => { loadPackages(); return api("/api/session"); }).then(setLogged);
+loadInfo().then(() => { loadPackages(); loadStorage(); return api("/api/session"); }).then(setLogged);
 </script>
 </body>
 </html>

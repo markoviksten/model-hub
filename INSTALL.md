@@ -116,9 +116,18 @@ Mallit ja `.tar`-paketit ovat hostin `models/`-kansiossa (volume `/models`).
 
 Image toimii OpenShiftin satunnaisella UID:llä. Sovelluksessa ei ole autentikointia, joten älä luo Routea; käytä `oc port-forward`ia.
 
+### Levytila
+
+Mallit eivät tallennu kontin sisään vaan **hostin kansioon** `models/` (volume `/models`). Tilaa on siis niin paljon kuin hostin levyllä on vapaana; kontin oma kerros (~1,3 GB) ei kasva. Jos ajat ilman `-v`-volumea, mallit menevät kontin kirjoituskerrokseen ja katoavat kontin poistuessa.
+
+- **Levytila ja tallennetut mallit** -osio (välilehti 1) näyttää vapaan ja käytetyn tilan, ja laskuri kertoo mahtuuko tietyn kokoinen malli (`.tar`-paketin kanssa tarvitaan kaksinkertainen tila).
+- **Poista** vapauttaa tilaa: purettu mallikansio ja `.tar`-paketti poistetaan erikseen. Poisto on estetty latauksen, tuonnin ja kopioinnin aikana.
+- Lataus estetään (HTTP 507), jos tila ei riitä.
+- **Tilan kasvattaminen:** vapauta tilaa hostin levyltä, valitse toinen kansio (`-v D:\models:/models`) tai Rancher Desktop / Docker Desktop -käytössä kasvata VM:n levyä asetuksista. Linux-hostissa laajenna tiedostojärjestelmää (LVM) tai liitä uusi levy `models/`-kansioon.
+
 ## 4. Ensimmäinen käyttö
 
-1. **1. Hae malli**: lataa (yhdistetty) tai tuo paketti (air-gapped). Mallin voi valita valmiista listasta, hakea Hugging Facesta hakusanalla (**Hae**, max 20 tulosta latausmäärän mukaan; **Valitse** täyttää repo ID:n, **Lataa** aloittaa latauksen) tai kirjoittaa repo ID:n käsin. Haku vaatii yhteyden huggingface.co:hon eikä toimi offline-tilassa.
+1. **1. Hae malli**: lataa (yhdistetty) tai tuo paketti (air-gapped). Mallin voi valita valmiista listasta, hakea Hugging Facesta hakusanalla tai kirjoittaa repo ID:n käsin. Haku: järjestys (ladatuimmat, päivitetyimmät, uusimmat, tykätyimmät), 10 tulosta/sivu (max 10 sivua), luonti- ja päivityspäivä, **Tyhjennä** tyhjentää haun; **Valitse** täyttää repo ID:n, **Lataa** aloittaa latauksen. Haku vaatii yhteyden huggingface.co:hon eikä toimi offline-tilassa. Sivun alareunassa näkyy levytila, laskuri ja mallien poisto.
 2. **2. Vie OpenShift AI:hin**: liitä OpenShift-konsolin *Copy login command* -komento ja paina **Kirjaudu**.
 3. Valitse malli, projekti, PVC:n nimi ja koko. Koko ehdotetaan automaattisesti.
 4. Paina **Kopioi malli PVC:lle** ja seuraa etenemistä (aika, nopeus ja arvio jäljellä).

@@ -20,6 +20,18 @@ FOLDER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _EXE = ".exe" if os.name == "nt" else ""
 
 
+def disk_usage() -> dict:
+    """Return total/used/free bytes of the filesystem holding the models folder."""
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    usage = shutil.disk_usage(MODELS_DIR)
+    return {"total": usage.total, "used": usage.used, "free": usage.free}
+
+
+def disk_free() -> int:
+    """Return free bytes on the filesystem holding the models folder."""
+    return disk_usage()["free"]
+
+
 def elapsed(started: Optional[float], ended: Optional[float] = None) -> Optional[float]:
     """Seconds between `started` and `ended` (or now); None if not started."""
     if started is None:

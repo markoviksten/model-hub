@@ -8,11 +8,13 @@ import deployer
 import downloader
 import packages
 import settings
+import storage
 
 app = FastAPI(title="Model Hub", docs_url=None, redoc_url=None)
 app.include_router(downloader.router)
 app.include_router(packages.router)
 app.include_router(deployer.router)
+app.include_router(storage.router)
 app.mount("/static", StaticFiles(directory=settings.BASE_DIR / "static"), name="static")
 
 

@@ -33,7 +33,7 @@ if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $stage, "$stage\static", "$stage\tools", "$stage\wheels", "$stage\models" | Out-Null
 
 # App files
-foreach ($f in "main.py","settings.py","downloader.py","packages.py","deployer.py","requirements.txt","start.bat","install_offline.ps1","README.md") {
+foreach ($f in "main.py","settings.py","downloader.py","packages.py","deployer.py","storage.py","requirements.txt","start.bat","install_offline.ps1","README.md") {
     $src = Join-Path $root $f
     if (Test-Path $src) { Copy-Item $src $stage }
 }

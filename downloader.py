@@ -36,7 +36,8 @@ log = logging.getLogger("model_hub.downloader")
 ENABLED = HF_INSTALLED and not settings.OFFLINE
 REPO_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}/[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 MAX_JOBS_KEPT = 50
-SEARCH_LIMIT = 20
+SEARCH_PAGE_SIZE = 10
+SEARCH_MAX_PAGES = 10
 
 PRESETS = [
     {"id": "qwen2-fp8", "label": "Qwen2 0.5B Instruct FP8", "repo_id": "RedHatAI/Qwen2-0.5B-Instruct-FP8",
@@ -152,25 +153,53 @@ class SearchHit(BaseModel):
     downloads: int = 0
     likes: int = 0
     task: Optional[str] = None
+    created: Optional[str] = None
+    modified: Optional[str] = None
 
 
-@router.get("/search", response_model=list[SearchHit])
-async def search_models(q: str = Query(..., min_length=2, max_length=100)) -> list[SearchHit]:
-    """Search public Hugging Face models by text, most downloaded first (max 20)."""
+class SearchPage(BaseModel):
+    """One page of search results."""
+
+    items: list[SearchHit]
+    page: int
+    page_size: int
+    has_next: bool
+
+
+def _date(value) -> Optional[str]:
+    """Return a datetime as YYYY-MM-DD (None if missing)."""
+    return value.date().isoformat() if value else None
+
+
+@router.get("/search", response_model=SearchPage)
+async def search_models(
+    q: str = Query(..., min_length=2, max_length=100),
+    sort: Literal["downloads", "last_modified", "created_at", "likes"] = "downloads",
+    page: int = Query(0, ge=0, lt=SEARCH_MAX_PAGES),
+) -> SearchPage:
+    """Search public Hugging Face models; 10 per page, at most 10 pages (100 hits)."""
     if not ENABLED:
         raise HTTPException(503, "Haku on pois käytöstä (offline-tila tai huggingface_hub puuttuu).")
+    limit = (page + 1) * SEARCH_PAGE_SIZE + 1  # one extra hit tells whether a next page exists
     try:
         models = await asyncio.to_thread(
-            lambda: list(HfApi().list_models(search=q, sort="downloads", limit=SEARCH_LIMIT))
+            lambda: list(HfApi().list_models(
+                search=q, sort=sort, limit=limit,
+                expand=["downloads", "likes", "pipeline_tag", "createdAt", "lastModified"],
+            ))
         )
     except Exception:  # noqa: BLE001
         log.exception("Hugging Face search failed")
         raise HTTPException(502, "Haku epäonnistui. Katso palvelimen loki.") from None
-    return [
-        SearchHit(repo_id=m.id, downloads=m.downloads or 0, likes=m.likes or 0, task=m.pipeline_tag)
-        for m in models
+    start = page * SEARCH_PAGE_SIZE
+    items = [
+        SearchHit(repo_id=m.id, downloads=m.downloads or 0, likes=m.likes or 0, task=m.pipeline_tag,
+                  created=_date(m.created_at), modified=_date(m.last_modified))
+        for m in models[start:start + SEARCH_PAGE_SIZE]
         if REPO_ID_RE.match(m.id)
     ]
+    has_next = len(models) > start + SEARCH_PAGE_SIZE and page + 1 < SEARCH_MAX_PAGES
+    return SearchPage(items=items, page=page, page_size=SEARCH_PAGE_SIZE, has_next=has_next)
 
 
 @router.post("/downloads", response_model=JobStatus, status_code=202)
@@ -191,6 +220,13 @@ async def start_download(req: DownloadRequest) -> JobStatus:
     target = (settings.MODELS_DIR / req.repo_id.split("/")[1]).resolve()
     if settings.MODELS_DIR not in target.parents:
         raise HTTPException(422, "Virheellinen repo_id.")
+    need = (total * (2 if req.make_tar else 1)) - _dir_size(target)
+    free = settings.disk_free()
+    if need > free:
+        raise HTTPException(
+            507, f"Levytila ei riitä: tarvitaan noin {need / 1e9:.1f} GB, vapaana {free / 1e9:.1f} GB. "
+                 "Poista malleja tai kasvata levytilaa."
+        )
     with _lock:
         if any(j["state"] == "running" for j in _jobs.values()):
             raise HTTPException(409, "Toinen lataus on jo käynnissä.")
