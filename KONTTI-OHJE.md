@@ -71,35 +71,65 @@ Valinnat: `-Container <nimi>`, `-Tag <nimi:tagi>` (oletus `model-hub:airgap`), `
 
 Mallipainot pakkautuvat huonosti, joten arkisto on lähes yhtä suuri kuin mallit. `-NoCompress` säästää aikaa.
 
-### 1.4 Siirrä
+### 1.4 Kopioi tikulle
 
-Kopioi **molemmat** tiedostot siirtomedialle:
-- `model-hub-with-models.tar.gz`
-- `model-hub-with-models.tar.gz.sha256`
+Vaiheen 1 koneella (internet) kansiossa `model_hub/dist/` on kaksi tiedostoa. Kopioi ne tikulle mihin tahansa kansioon (esim. tikun juureen tai kansioon `model-hub-siirto`):
 
-Lisäksi tarvitaan **loader-image** (`ubi9/ubi`, sisältää `tar`) klusterin rekisteriin. Sen tuonti ja osoite: kohta 2.4 (`docker save` vaiheessa 1, lataus ja push vaiheessa 2).
+| Tiedosto | Pakollinen | Mihin tarvitaan |
+|---|---|---|
+| `dist/model-hub-with-models.tar.gz` | kyllä | Kontti-image malleineen. |
+| `dist/model-hub-with-models.tar.gz.sha256` | kyllä | Tarkistussumma, jolla varmistetaan, ettei tiedosto vioittunut siirrossa. |
+| `start.sh` (kansiosta `model_hub`) | suositus | Käynnistää kontin yhdellä komennolla. Ilman sitä käytä `docker run` -komentoa kohdassa 2.2. |
+| `ubi9.tar` | jos klusterissa ei ole tar-imagea | Apupodin image. Teet sen näin: `docker pull registry.access.redhat.com/ubi9/ubi:latest` ja `docker save -o ubi9.tar registry.access.redhat.com/ubi9/ubi:latest`. Käyttö: kohta 2.4. |
 
-## Vaihe 2 – käyttö air-gapped-ympäristössä
+Älä kopioi muuta: sovelluskoodi ja mallit ovat jo imagen sisällä. Tiedostot ovat isoja (arkisto on lähes yhtä suuri kuin mallit), joten tarkista, että tikulla on tarpeeksi tilaa ja että tikun tiedostojärjestelmä sallii yli 4 GB:n tiedostot (exFAT tai NTFS, ei FAT32).
 
-### 2.1 Tarkista ja lataa image
+## Vaihe 2 - käyttö air-gapped-ympäristössä
 
-```powershell
-(Get-FileHash model-hub-with-models.tar.gz -Algorithm SHA256).Hash.ToLower()
-# vertaa .sha256-tiedostoon; jos ei täsmää, kopioi uudelleen
-docker load -i model-hub-with-models.tar.gz        # podman load -i ...
+Koneella, jossa Model Hub ajetaan, on oltava Docker tai Podman sekä verkkoyhteys OpenShift-klusterin API:in (`oc`-kirjautumista varten; `oc` on kontin sisällä).
+
+### 2.1 Kopioi tikulta koneelle, tarkista ja lataa
+
+1. Kopioi tikun tiedostot air-gapped-koneelle omaan kansioon, esim. `~/model-hub-siirto` (Windows: `C:\model-hub-siirto`). Tarkista, että levyllä on vähintään arkiston koko kertaa kaksi vapaata (arkisto + ladattu image).
+2. Mene kansioon ja tarkista summa:
+
+```bash
+cd ~/model-hub-siirto
+sha256sum -c model-hub-with-models.tar.gz.sha256   # tulosteen pitää olla "model-hub-with-models.tar.gz: OK"
 ```
 
-Linux: `sha256sum -c model-hub-with-models.tar.gz.sha256`.
+Windows PowerShell: `(Get-FileHash model-hub-with-models.tar.gz -Algorithm SHA256).Hash.ToLower()` ja vertaa `.sha256`-tiedoston alkuun. Jos summa ei täsmää, kopioi tiedosto uudelleen.
+
+3. Lataa image Dockeriin:
+
+```bash
+docker load -i model-hub-with-models.tar.gz        # podman load -i ...
+docker images | grep model-hub                      # näyttää model-hub:airgap
+```
+
+Latauksen jälkeen `.tar.gz`-tiedoston voi poistaa levyltä tilan säästämiseksi.
 
 ### 2.2 Käynnistä
 
-```powershell
-docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 `
-  -e MODEL_HUB_LOADER_IMAGE=image-registry.openshift-image-registry.svc:5000/<projekti>/ubi9:latest `   # ks. 2.4
+Helpoin tapa (`start.sh` samassa kansiossa):
+
+```bash
+MODEL_HUB_IMAGE=model-hub:airgap MODEL_HUB_LOADER_IMAGE=<osoite> bash ./start.sh
+```
+
+(`bash ./start.sh` toimii, vaikka tikulta kopioitu tiedosto ei olisi suoritettava.)
+
+Tai ilman skriptiä:
+
+```bash
+docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 \
+  -e MODEL_HUB_LOADER_IMAGE=<osoite> \
   model-hub:airgap
 ```
 
-Avaa http://127.0.0.1:8767. Etusivun rivillä lukee, että lataus on pois käytöstä (offline). Sivun alareunassa näkyvät kontin mallit.
+`<osoite>` on apupodin image klusterin rekisterissä, esim. `image-registry.openshift-image-registry.svc:5000/<projekti>/ubi9:latest`. Se selitetään kohdassa 2.4 (tee 2.4 ensin, jos imagea ei ole vielä klusterissa).
+
+Avaa http://127.0.0.1:8767. Etusivun rivillä lukee, että lataus on pois käytöstä (offline). Oikeassa sarakkeessa näkyvät kontin mallit.
 
 ### 2.3 Vie malli OpenShift AI:hin
 

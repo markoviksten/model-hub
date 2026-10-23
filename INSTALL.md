@@ -96,7 +96,8 @@ docker run -d --name model-hub -p 127.0.0.1:8767:8767 model-hub:latest
 # lataa mallit UI:ssa, sitten:
 .\export_with_models.ps1          # -> dist\model-hub-with-models.tar.gz + .sha256
 
-# Vaihe 2 (air-gapped)
+# Vaihe 2 (air-gapped): kopioi ensin dist/model-hub-with-models.tar.gz ja .sha256 tikulle ja siitä air-gapped-koneen omaan kansioon (ks. KONTTI-OHJE.md 1.4 ja 2.1), mene kansioon ja:
+sha256sum -c model-hub-with-models.tar.gz.sha256
 docker load -i model-hub-with-models.tar.gz
 docker run -d --name model-hub -p 127.0.0.1:8767:8767 -e MODEL_HUB_LOADER_IMAGE=image-registry.openshift-image-registry.svc:5000/<projekti>/ubi9:latest model-hub:airgap
 # MODEL_HUB_LOADER_IMAGE = apupodin image, jonka klusteri hakee omasta rekisteristään (ks. KONTTI-OHJE.md kohta 2.4)
