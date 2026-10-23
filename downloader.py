@@ -5,6 +5,9 @@ import concurrent.futures
 import logging
 import os
 import re
+import shutil
+import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -57,7 +60,7 @@ class JobStatus(BaseModel):
 
     id: str
     repo_id: str
-    state: Literal["running", "done", "error"]
+    state: Literal["running", "done", "error", "cancelled"]
     downloaded_bytes: int
     total_bytes: int
     path: Optional[str] = None
@@ -86,20 +89,65 @@ def _safe_error(exc: Exception) -> str:
     return "Lataus epäonnistui. Katso palvelimen loki."
 
 
-def _run_job(job: dict, req: DownloadRequest, target: Path) -> None:
-    """Worker thread: download the repo, then set the final state."""
-    try:
-        snapshot_download(repo_id=req.repo_id, local_dir=str(target), token=req.token or None)
-        job["path"] = str(target)
-        job["message"] = None
-        job["ended_at"] = time.time()
-        job["state"] = "done"
-    except Exception as exc:  # noqa: BLE001 - mapped to a safe message
-        log.exception("Download failed for %s", req.repo_id)
-        job["message"] = _safe_error(exc)
-        job["ended_at"] = time.time()
-        job["state"] = "error"
+_CHILD_CODE = (
+    "import sys\n"
+    "from huggingface_hub import snapshot_download\n"
+    "from huggingface_hub.errors import GatedRepoError, RepositoryNotFoundError\n"
+    "try:\n"
+    "    snapshot_download(repo_id=sys.argv[1], local_dir=sys.argv[2])\n"
+    "except GatedRepoError:\n"
+    "    sys.exit(3)\n"
+    "except RepositoryNotFoundError:\n"
+    "    sys.exit(4)\n"
+)
+_EXIT_MESSAGES = {
+    3: "Malli on gated: hyväksy lisenssi Hugging Facessa ja anna token.",
+    4: "Mallia ei löytynyt (tai se vaatii tokenin).",
+}
 
+
+def _cleanup_partial(target: Path, preexisting: bool) -> None:
+    """Remove files left by an interrupted download (whole folder if it did not exist before)."""
+    if not preexisting:
+        shutil.rmtree(target, ignore_errors=True)
+        return
+    for part in target.rglob("*.incomplete"):
+        part.unlink(missing_ok=True)
+    shutil.rmtree(target / ".cache" / "huggingface" / "download", ignore_errors=True)
+
+
+def _run_job(job: dict, req: DownloadRequest, target: Path) -> None:
+    """Worker thread: run the download in a child process (so it can be cancelled), then set the final state."""
+    env = {**os.environ, "HF_HUB_DISABLE_PROGRESS_BARS": "1"}
+    if req.token:
+        env["HF_TOKEN"] = req.token  # via env, never argv
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, "-c", _CHILD_CODE, req.repo_id, str(target)], env=env
+        )
+        job["proc"] = proc
+        if job["cancel"]:  # cancelled before the process handle was stored
+            proc.terminate()
+        rc = proc.wait()
+        if job["cancel"]:
+            _cleanup_partial(target, job["preexisting"])
+            job["message"] = "Lataus keskeytetty, keskeneräiset tiedostot poistettu."
+            job["state"] = "cancelled"
+        elif rc == 0:
+            job["path"] = str(target)
+            job["message"] = None
+            job["state"] = "done"
+        else:
+            log.error("Download of %s exited with code %s", req.repo_id, rc)
+            job["message"] = _EXIT_MESSAGES.get(rc, "Lataus epäonnistui. Katso palvelimen loki.")
+            job["state"] = "error"
+    except Exception:  # noqa: BLE001 - mapped to a safe message
+        log.exception("Download failed for %s", req.repo_id)
+        job["message"] = "Lataus epäonnistui. Katso palvelimen loki."
+        job["state"] = "error"
+    finally:
+        job["proc"] = None
+        job["ended_at"] = time.time()
 
 def _to_status(job: dict) -> JobStatus:
     """Build a JobStatus, refreshing downloaded bytes from disk while running."""
@@ -107,7 +155,7 @@ def _to_status(job: dict) -> JobStatus:
         job["downloaded_bytes"] = _dir_size(Path(job["target"]))
     elif job["state"] == "done":
         job["downloaded_bytes"] = max(job["downloaded_bytes"], job["total_bytes"])
-    public = {k: v for k, v in job.items() if k not in ("target", "started_at", "ended_at")}
+    public = {k: v for k, v in job.items() if k not in ("target", "started_at", "ended_at", "proc", "cancel", "preexisting")}
     return JobStatus(**public, elapsed_s=settings.elapsed(job["started_at"], job["ended_at"]))
 
 
@@ -207,12 +255,14 @@ async def start_download(req: DownloadRequest) -> JobStatus:
     with _lock:
         if any(j["state"] == "running" for j in _jobs.values()):
             raise HTTPException(409, "Toinen lataus on jo käynnissä.")
+        preexisting = target.exists()
         target.mkdir(parents=True, exist_ok=True)
         job_id = uuid.uuid4().hex[:12]
         _jobs[job_id] = {
             "id": job_id, "repo_id": req.repo_id, "state": "running",
             "downloaded_bytes": 0, "total_bytes": total, "path": None,
             "message": None, "target": str(target),
+            "proc": None, "cancel": False, "preexisting": preexisting,
             "started_at": time.time(), "ended_at": None,
         }
         for old in list(_jobs)[:-MAX_JOBS_KEPT]:
@@ -227,4 +277,18 @@ async def get_download(job_id: str) -> JobStatus:
     job = _jobs.get(job_id)
     if job is None:
         raise HTTPException(404, "Latausta ei löytynyt.")
+    return _to_status(job)
+
+@router.post("/downloads/{job_id}/cancel", response_model=JobStatus)
+async def cancel_download(job_id: str) -> JobStatus:
+    """Stop a running download; the worker then deletes the partial files of that model."""
+    job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(404, "Latausta ei löytynyt.")
+    if job["state"] != "running":
+        raise HTTPException(409, "Lataus ei ole käynnissä.")
+    job["cancel"] = True
+    proc = job.get("proc")
+    if proc is not None:
+        proc.terminate()
     return _to_status(job)

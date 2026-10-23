@@ -297,6 +297,13 @@ async function startDownload(repo) {
   } catch (e) { $("dlStatus").innerHTML = notify("error", e.message); }
 }
 
+/** Ask the server to stop the running download and delete its partial files. */
+async function cancelDownload(id) {
+  if (!confirm("Keskeytetäänkö lataus? Keskeneräiset tiedostot poistetaan.")) return;
+  $("cancelDl").disabled = true;
+  try { await post(`/api/downloads/${id}/cancel`); } catch (e) { $("dlStatus").innerHTML = notify("error", e.message); }
+}
+
 function renderDownload(s) {
   const title = esc(s.repo_id);
   const speed = s.elapsed_s > 1 ? s.downloaded_bytes / s.elapsed_s : 0;
@@ -305,7 +312,11 @@ function renderDownload(s) {
     const pct = s.total_bytes ? Math.round(100 * s.downloaded_bytes / s.total_bytes) : 0;
     const left = eta(s.downloaded_bytes, s.total_bytes, s.elapsed_s);
     $("dlStatus").innerHTML = bar(title, pct, `${gb(s.downloaded_bytes)} / ${gb(s.total_bytes)} (${pct}%)`)
-      + meta + `<span>Nopeus: <b>${speed ? gb(speed) + "/s" : "–"}</b></span><span>Arvio jäljellä: <b>${fmtT(left)}</b></span></div>`;
+      + meta + `<span>Nopeus: <b>${speed ? gb(speed) + "/s" : "–"}</b></span><span>Arvio jäljellä: <b>${fmtT(left)}</b></span></div>`
+      + `<button class="cds--btn cds--btn--danger--tertiary cds--btn--sm" id="cancelDl" style="margin-top:.5rem">Keskeytä lataus</button>`;
+    $("cancelDl").onclick = () => cancelDownload(s.id);
+  } else if (s.state === "cancelled") {
+    $("dlStatus").innerHTML = notify("info", `${s.repo_id}: ${s.message}`);
   } else if (s.state === "done") {
     $("dlStatus").innerHTML = bar(title, 100, "Valmis", "finished") + meta + "</div>"
       + `<div class="muted">Kansio: <code>${esc(s.path)}</code></div>`;

@@ -115,7 +115,7 @@ Mallit asuvat kontin kirjoituskerroksessa (Rancher/Docker Desktopissa VM:n levyl
 
 ## 4. Ensimmäinen käyttö
 
-1. **1. Hae malli**: lataa (yhdistetty) tai tuo paketti (air-gapped). Mallin voi hakea Hugging Facesta hakusanalla tai kirjoittaa repo ID:n käsin. Haku: järjestys (ladatuimmat, päivitetyimmät, uusimmat, tykätyimmät), 10 tulosta/sivu (max 10 sivua), mallin koko (GB), luonti- ja päivityspäivä, **Tyhjennä** tyhjentää haun; **Valitse** täyttää repo ID:n, **Lataa** aloittaa latauksen. Haku vaatii yhteyden huggingface.co:hon eikä toimi offline-tilassa. Sivun alareunassa näkyy levytila, laskuri ja mallien poisto.
+1. **1. Hae malli**: lataa (yhdistetty) tai tuo paketti (air-gapped). Mallin voi hakea Hugging Facesta hakusanalla tai kirjoittaa repo ID:n käsin. Haku: järjestys (ladatuimmat, päivitetyimmät, uusimmat, tykätyimmät), 10 tulosta/sivu (max 10 sivua), mallin koko (GB), luonti- ja päivityspäivä, **Tyhjennä** tyhjentää haun; **Valitse** täyttää repo ID:n, **Lataa** aloittaa latauksen ja **Keskeytä lataus** pysäyttää sen sekä poistaa mallin keskeneräiset tiedostot. Haku vaatii yhteyden huggingface.co:hon eikä toimi offline-tilassa. Sivun alareunassa näkyy levytila, laskuri ja mallien poisto.
 2. **2. Vie OpenShift AI:hin**: liitä OpenShift-konsolin *Copy login command* -komento ja paina **Kirjaudu**.
 3. Valitse malli, projekti, PVC:n nimi ja koko. Koko ehdotetaan automaattisesti.
 4. Paina **Kopioi malli PVC:lle** ja seuraa etenemistä (aika, nopeus ja arvio jäljellä).
