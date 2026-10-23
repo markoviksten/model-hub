@@ -63,7 +63,7 @@ Kopioi **molemmat** tiedostot siirtomedialle:
 - `model-hub-with-models.tar.gz`
 - `model-hub-with-models.tar.gz.sha256`
 
-Lisäksi air-gapped-ympäristön tarvitsema **loader-image** (`ubi9/ubi`, sisältää `tar`) pitää olla peilattuna clusterin rekisteriin (ks. kohta Vaihe 2.4).
+Lisäksi tarvitaan **loader-image** (`ubi9/ubi`, sisältää `tar`) klusterin rekisteriin. Sen tuonti ja osoite: kohta 2.4 (`docker save` vaiheessa 1, lataus ja push vaiheessa 2).
 
 ## Vaihe 2 – käyttö air-gapped-ympäristössä
 
@@ -81,7 +81,7 @@ Linux: `sha256sum -c model-hub-with-models.tar.gz.sha256`.
 
 ```powershell
 docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 `
-  -e MODEL_HUB_LOADER_IMAGE=<oma-rekisteri>/ubi9/ubi:latest `
+  -e MODEL_HUB_LOADER_IMAGE=image-registry.openshift-image-registry.svc:5000/<projekti>/ubi9:latest `   # ks. 2.4
   model-hub:airgap
 ```
 
@@ -95,13 +95,58 @@ Avaa http://127.0.0.1:8767. Etusivun rivillä lukee, että lataus on pois käyt�
 4. Paina **Kopioi malli PVC:lle** ja seuraa etenemistä.
 5. Tee deployment OpenShift AI:ssa sovelluksen näyttämien ohjeiden mukaan (*Models → Deploy model*, Cluster storage, vLLM-runtime).
 
-### 2.4 Loader-image ja rekisteri
+### 2.4 Loader-image: mikä se on ja mitä siihen kirjoitetaan
 
-Kopiointi käyttää clusterissa apupodia (`MODEL_HUB_LOADER_IMAGE`, oletus `registry.access.redhat.com/ubi9/ubi:latest`). Air-gapped-clusterissa sitä ei pääse hakemaan internetistä, joten:
+**Mikä se on:** kun malli kopioidaan PVC:lle, OpenShiftiin käynnistyy hetkeksi pieni apupodi, joka mounttaa PVC:n. Podille tarvitaan **konttiimage, jossa on `tar`** (UBI9 kelpaa). Oletus on `registry.access.redhat.com/ubi9/ubi:latest`, jonka klusteri hakee internetistä. Air-gapped-klusteri ei pääse internetiin, joten image täytyy tuoda **klusterin omaan rekisteriin**, ja `MODEL_HUB_LOADER_IMAGE` kertoo, mistä osoitteesta klusteri sen sieltä hakee.
 
-1. Peilaa image vaiheessa 1 (`skopeo copy` / `oc image mirror`) sisäiseen rekisteriin ja siirrä se samalla medialla.
-2. Lisää tarvittaessa `ImageDigestMirrorSet`.
-3. Anna osoite `-e MODEL_HUB_LOADER_IMAGE=...` tai UI:n kenttään.
+**Mikä on "oma rekisteri":** sen rekisterin osoite, jota *klusterisi* (ei oma koneesi) voi käyttää imagejen hakuun. Kysy se klusterin ylläpitäjältä tai katso alta. Tyypillisiä arvoja:
+
+| Tilanne | `MODEL_HUB_LOADER_IMAGE` |
+|---|---|
+| Klusteri pääsee internetiin (ei air-gapped) | jätä asettamatta (oletus toimii) |
+| OpenShiftin oma sisäinen rekisteri | `image-registry.openshift-image-registry.svc:5000/<projekti>/ubi9:latest` |
+| Yrityksen rekisteri (Quay, Artifactory, Harbor) | `quay.mycorp.local/mirror/ubi9/ubi:latest` |
+
+`<projekti>` on se OpenShift-projekti, johon malli kopioidaan (sama kuin UI:n Projekti-kenttä).
+
+**Tarkista ensin, onko sopiva image jo klusterissa** (silloin mitään ei tarvitse peilata):
+
+```powershell
+oc get is -n openshift                       # sisäisen rekisterin valmiit imaget
+oc run tartest --rm -it --restart=Never --image=<kokeiltava-image> -- tar --version
+```
+
+Jos `tar --version` tulostaa version, image kelpaa. Voit käyttää sen osoitetta sellaisenaan.
+
+**Jos sopivaa imagea ei ole, tuo ubi9 klusterin sisäiseen rekisteriin:**
+
+```powershell
+# Vaihe 1 (internet): hae ja tallenna image, kopioi tiedosto samalle medialle
+docker pull registry.access.redhat.com/ubi9/ubi:latest
+docker save -o ubi9.tar registry.access.redhat.com/ubi9/ubi:latest
+
+# Vaihe 2 (air-gapped): lataa, merkitse ja työnnä klusterin rekisteriin
+docker load -i ubi9.tar
+oc login ...                                 # klusteriin
+oc get route default-route -n openshift-image-registry   # rekisterin ulkoinen osoite (<reitti>)
+docker login -u $(oc whoami) -p $(oc whoami -t) <reitti>
+docker tag  registry.access.redhat.com/ubi9/ubi:latest <reitti>/<projekti>/ubi9:latest
+docker push <reitti>/<projekti>/ubi9:latest
+```
+
+Jos reittiä ei ole, ylläpitäjä ottaa sen käyttöön: `oc patch configs.imageregistry.operator.openshift.io/cluster --type merge -p '{"spec":{"defaultRoute":true}}'`.
+
+Tämän jälkeen käytä podin sisäistä osoitetta:
+
+```powershell
+docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 `
+  -e MODEL_HUB_LOADER_IMAGE=image-registry.openshift-image-registry.svc:5000/<projekti>/ubi9:latest `
+  model-hub:airgap
+```
+
+Osoite voidaan myös kirjoittaa UI:n *Apupodin image* -kenttään. Jos image on eri projektissa kuin kohdeprojekti, anna kohdeprojektille lupa hakea se: `oc policy add-role-to-group system:image-puller system:serviceaccounts:<kohdeprojekti> -n <imagen-projekti>`.
+
+Jos yrityksellänne on jo oma peilirekisteri (`oc-mirror`, ImageDigestMirrorSet), pyydä ylläpitoa lisäämään `ubi9/ubi` peiliin ja käytä sen osoitetta.
 
 ### 2.5 Tilan vapauttaminen
 
@@ -132,7 +177,7 @@ Toista vaihe 1 samalla kontilla: `docker start model-hub`, lataa lisää malleja
 |---|---|
 | `export_with_models.ps1`: "has /models on a volume" | Kontti ajettiin `-v`:llä. Aja se ilman, lataa mallit uudelleen. |
 | Mallit puuttuvat kohteessa | Export tehtiin uudesta tyhjästä kontista tai väärästä containerista. Tarkista `-Container`. |
-| `ImagePullBackOff` apupodissa | Loader-imagea ei ole peilattu. Ks. 2.4. |
+| `ImagePullBackOff` apupodissa | Loader-imagea ei löydy klusterin rekisteristä tai osoite on väärä. Ks. 2.4. |
 | `Permission denied` PVC:llä | Valitse **Aja apupodi rootina** (vaatii `anyuid`-SCC:n). |
 | PVC jo käytössä | RWO-PVC voi olla vain yhden podin käytössä. Pysäytä käyttäjä tai käytä toista PVC:tä. |
 | Selain: *NetworkError* | Kontti ei ole käynnissä: `docker ps -a`, `docker start model-hub`. |

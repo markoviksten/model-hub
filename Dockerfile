@@ -33,7 +33,7 @@ WORKDIR /app
 COPY requirements.txt requirements-online.txt ./
 RUN pip install --no-cache-dir -r requirements-online.txt
 
-COPY main.py settings.py downloader.py packages.py deployer.py storage.py ./
+COPY main.py settings.py downloader.py deployer.py storage.py ./
 COPY static ./static
 
 # Writable by any UID in group 0 (OpenShift random-UID compatible).

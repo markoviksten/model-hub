@@ -5,7 +5,7 @@
 Yksi sovellus: malli haetaan (tai tuodaan paketista) ja viedään OpenShift AI:n PVC:lle. Toimii yhdistettynä ja air-gapped-ympäristössä.
 
 ## Välilehdet
-1. **Hae malli** – lataus Hugging Facesta (haku hakusanalla tai repo ID käsin; piilossa offline-tilassa) tai tuonti `<malli>.tar` + `.sha256` -paketista (SHA-256 tarkistetaan).
+1. **Hae malli** – lataus Hugging Facesta (haku hakusanalla tai repo ID käsin; piilossa offline-tilassa).
 2. **Vie OpenShift AI:hin** – `oc login`, projekti, PVC, loader-pod, kopiointi, tarkistus, siivous.
 
 UI on rakennettu IBM Carbon Design Systemillä (`static/carbon.css`, IBM Plex -fontit `static/fonts/`; ei ulkoisia riippuvuuksia, toimii offline). Edistymispalkeissa näkyy kulunut aika, nopeus ja arvio jäljellä olevasta ajasta; deploy-vaiheilla on omat kestonsa.
@@ -31,7 +31,7 @@ start.bat offline
 ```
 Paketti sisältää: sovellus, Python-wheelit (`wheels/`), `tools/oc.exe`. `rsync` valinnainen (`-RsyncPath`); ilman sitä `oc rsync` käyttää tar-varmistusta.
 
-Mallit tuodaan siirtomedialta: kopioi `<malli>.tar` ja `<malli>.sha256` kansioon `models/` (tai käytä UI:n tuontia).
+Mallit tuodaan siirtomedialta kopioimalla mallikansio kansioon `models/`.
 
 ## Kontti (sisältää kaiken)
 Mallit tallennetaan kontin sisään; kontti malleineen viedään air-gapped-ympäristöön image-arkistona. Täysi ohje: [KONTTI-OHJE.md](KONTTI-OHJE.md).
@@ -57,7 +57,7 @@ Varoitus: `docker rm` ja `docker compose down` poistavat kontin ja mallit; pysä
 
 ## Rajoitteet
 - `oc`-binäärin pitää vastata kohde-OS:ää (Linuxille tarvitaan Linux-`oc`, ei `.exe`).
-- Loader-podin imagen (ubi9, sisältää `tar`) pitää olla peilattu clusterin rekisteriin (IDMS/ImageDigestMirrorSet); aseta `MODEL_HUB_LOADER_IMAGE`.
+- Loader-podin imagen (ubi9, sisältää `tar`) pitää olla klusterin omassa rekisterissä; aseta osoite `MODEL_HUB_LOADER_IMAGE`:lla (ohje: KONTTI-OHJE.md kohta 2.4).
 - Sovellus kuuntelee vain 127.0.0.1:ssä, eikä siinä ole omaa autentikointia.
 
 

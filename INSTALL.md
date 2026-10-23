@@ -14,7 +14,7 @@ Model Hub hakee tai tuo mallin ja kopioi sen OpenShift AI:n PVC:lle. Ohjeessa on
 
 Klusterin vaatimukset:
 - OpenShift AI (RHOAI) ja StorageClass, joka tukee `ReadWriteOnce`-PVC:tä.
-- Apupodin image (oletus `registry.access.redhat.com/ubi9/ubi:latest`) pitää olla haettavissa klusterista. Air-gapped-ympäristössä peilaa se omaan rekisteriin (ImageDigestMirrorSet) ja aseta osoite sovelluksen kenttään tai `MODEL_HUB_LOADER_IMAGE`.
+- Apupodin image (oletus `registry.access.redhat.com/ubi9/ubi:latest`) pitää olla haettavissa klusterista. Air-gapped-ympäristössä tuo se klusterin omaan rekisteriin ja aseta osoite sovelluksen kenttään tai `MODEL_HUB_LOADER_IMAGE` (ohje: KONTTI-OHJE.md kohta 2.4).
 
 ## 2. Yhdistetty kone (Windows)
 
@@ -98,7 +98,8 @@ docker run -d --name model-hub -p 127.0.0.1:8767:8767 model-hub:latest
 
 # Vaihe 2 (air-gapped)
 docker load -i model-hub-with-models.tar.gz
-docker run -d --name model-hub -p 127.0.0.1:8767:8767 -e MODEL_HUB_LOADER_IMAGE=<peilattu image> model-hub:airgap
+docker run -d --name model-hub -p 127.0.0.1:8767:8767 -e MODEL_HUB_LOADER_IMAGE=image-registry.openshift-image-registry.svc:5000/<projekti>/ubi9:latest model-hub:airgap
+# MODEL_HUB_LOADER_IMAGE = apupodin image, jonka klusteri hakee omasta rekisteristään (ks. KONTTI-OHJE.md kohta 2.4)
 ```
 
 Varoitus: `docker rm`, `docker run --rm` ja `docker compose down` poistavat kontin ja sen mallit. Pysäytä komennolla `docker stop`. Podman: korvaa `docker` komennolla `podman`.
@@ -111,11 +112,11 @@ Image toimii OpenShiftin satunnaisella UID:llä. Sovelluksessa ei ole autentikoi
 
 ### Levytila
 
-Mallit asuvat kontin kirjoituskerroksessa (Rancher/Docker Desktopissa VM:n levyllä). **Levytila ja tallennetut mallit** -osio (välilehti 1) näyttää vapaan tilan, laskuri kertoo mahtuuko malli, ja **Poista** vapauttaa tilaa. Lataus estetään (HTTP 507), jos tila ei riitä. Tilan kasvatus: kasvata Docker/Rancher Desktop -VM:n levyä tai siirrä Docker data-root isommalle levylle.
+Mallit asuvat kontin kirjoituskerroksessa (Rancher/Docker Desktopissa VM:n levyllä). **Levytila ja tallennetut mallit** -osio (välilehti 1, oikea sarake) näyttää vapaan tilan, laskuri kertoo mahtuuko malli, ja **Poista** vapauttaa tilaa. Lataus estetään (HTTP 507), jos tila ei riitä. Tilan kasvatus: kasvata Docker/Rancher Desktop -VM:n levyä tai siirrä Docker data-root isommalle levylle.
 
 ## 4. Ensimmäinen käyttö
 
-1. **1. Hae malli**: lataa (yhdistetty) tai tuo paketti (air-gapped). Mallin voi hakea Hugging Facesta hakusanalla tai kirjoittaa repo ID:n käsin. Haku: järjestys (ladatuimmat, päivitetyimmät, uusimmat, tykätyimmät), 10 tulosta/sivu (max 10 sivua), mallin koko (GB), luonti- ja päivityspäivä, **Tyhjennä** tyhjentää haun; **Valitse** täyttää repo ID:n, **Lataa** aloittaa latauksen ja **Keskeytä lataus** pysäyttää sen sekä poistaa mallin keskeneräiset tiedostot. Haku vaatii yhteyden huggingface.co:hon eikä toimi offline-tilassa. Sivun alareunassa näkyy levytila, laskuri ja mallien poisto.
+1. **1. Hae malli**: vasemmalla Lataa Hugging Facesta, oikealla Levytila ja tallennetut mallit. Mallin voi hakea Hugging Facesta hakusanalla tai kirjoittaa repo ID:n käsin. Haku: järjestys (ladatuimmat, päivitetyimmät, uusimmat, tykätyimmät), 10 tulosta/sivu (max 10 sivua), mallin koko (GB), luonti- ja päivityspäivä, **Tyhjennä** tyhjentää haun; **Valitse** täyttää repo ID:n, **Lataa** aloittaa latauksen ja **Keskeytä lataus** pysäyttää sen sekä poistaa mallin keskeneräiset tiedostot. Haku vaatii yhteyden huggingface.co:hon eikä toimi offline-tilassa. Oikeassa sarakkeessa näkyy levytila, laskuri ja mallien poisto.
 2. **2. Vie OpenShift AI:hin**: liitä OpenShift-konsolin *Copy login command* -komento ja paina **Kirjaudu**.
 3. Valitse malli, projekti, PVC:n nimi ja koko. Koko ehdotetaan automaattisesti.
 4. Paina **Kopioi malli PVC:lle** ja seuraa etenemistä (aika, nopeus ja arvio jäljellä).

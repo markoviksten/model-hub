@@ -7,7 +7,10 @@
 <link rel="stylesheet" href="/static/carbon.css">
 <style>
   body { background: var(--cds-background); color: var(--cds-text-primary); font-family: "IBM Plex Sans", system-ui, sans-serif; margin: 0; padding-top: 3rem; }
-  main { max-width: 56rem; margin: 0 auto; padding: 2rem 1rem 4rem; }
+  main { max-width: none; margin: 0; padding: 2rem 2rem 4rem; }
+  .cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 2rem; align-items: start; }
+  .cols h2 { margin-top: 1rem; }
+  @media (max-width: 1100px) { .cols { grid-template-columns: minmax(0, 1fr); } }
   h1 { font-size: 2rem; font-weight: 400; margin: 0 0 .5rem; }
   h2 { font-size: 1.25rem; font-weight: 400; margin: 2rem 0 1rem; }
   code, pre { font-family: "IBM Plex Mono", Consolas, monospace; }
@@ -80,6 +83,8 @@
 </div>
 
 <section id="get">
+ <div class="cols">
+  <div>
   <div id="dlSection">
     <h2>Lataa Hugging Facesta</h2>
     <div class="cds--form-item"><label class="cds--label" for="q">Hae mallia Hugging Facesta (esim. gemma fp8)</label>
@@ -102,11 +107,8 @@
   </div>
   <div id="offlineNote" class="cds--inline-notification cds--inline-notification--info hidden"><div class="cds--inline-notification__details"><div class="cds--inline-notification__text-wrapper"><div class="cds--inline-notification__subtitle" id="offlineText"></div></div></div></div>
 
-  <h2>Tuo siirtopaketti (.tar)</h2>
-  <p class="muted">Kopioi <code>malli.tar</code> ja <code>malli.tar.sha256</code> kansioon <code id="dirPk"></code>. Sovellus tarkistaa summan ja purkaa paketin.</p>
-  <div id="pkgList"></div>
-  <div id="pkgStatus" class="jobbox"></div>
-
+  </div>
+  <div>
   <h2>Levytila ja tallennetut mallit</h2>
   <div id="diskBox"></div>
   <div class="cds--form-item"><label class="cds--label" for="calcGb">Levytilalaskuri: mahtuuko malli? Syötä mallin koko (GB)</label>
@@ -115,6 +117,8 @@
       <span id="calcOut" class="muted"></span></div></div>
   <div id="storeList"></div>
   <div id="storeMsg"></div>
+  </div>
+ </div>
 </section>
 
 <section id="deploy" class="hidden">
@@ -234,14 +238,13 @@ document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => showTab(b
 async function loadInfo() {
   info = await api("/api/info");
   $("img").value = info.loader_image;
-  $("dirPk").textContent = info.models_dir;
   const oc = info.oc ? `oc ${info.oc_version || ""} (${info.oc_bundled ? "mukana paketissa" : "järjestelmästä"})` : "oc: EI LÖYDY";
   $("infoLine").innerHTML = `Mallikansio: <code>${esc(info.models_dir)}</code> &middot; ${esc(oc)} &middot; ${info.download_enabled ? "lataus päällä" : "offline-tila"}`;
   $("offlineNote").classList.toggle("hidden", info.download_enabled);
   if (!info.download_enabled) {
     $("offlineText").textContent = info.offline
-      ? "Offline-tila: lataus Hugging Facesta on pois käytöstä. Tuo malli siirtopaketilla alla. (Käynnistä start.bat ilman offline-parametria ottaaksesi latauksen käyttöön.)"
-      : "Paketti huggingface_hub ei ole asennettu: lataus on pois käytöstä. Asenna pip install -r requirements-online.txt tai tuo malli siirtopaketilla alla.";
+      ? "Offline-tila: lataus Hugging Facesta on pois käytöstä. (Käynnistä start.bat ilman offline-parametria ottaaksesi latauksen käyttöön.)"
+      : "Paketti huggingface_hub ei ole asennettu: lataus on pois käytöstä. Asenna pip install -r requirements-online.txt.";
   }
   if (!info.oc) $("loginMsg").textContent = "oc-työkalua ei löydy. Kopioi oc kansioon tools/ tai aseta OC_BIN.";
   showTab("get");
@@ -293,7 +296,7 @@ async function startDownload(repo) {
   if ($("hfToken").value) body.token = $("hfToken").value;
   try {
     const j = await post("/api/downloads", body);
-    poll("dl", "/api/downloads/" + j.id, renderDownload, () => { loadPackages(); loadModels(); loadStorage(); });
+    poll("dl", "/api/downloads/" + j.id, renderDownload, () => { loadModels(); loadStorage(); });
   } catch (e) { $("dlStatus").innerHTML = notify("error", e.message); }
 }
 
@@ -332,19 +335,19 @@ $("q").onkeydown = e => { if (e.key === "Enter") searchModels(); };
 /* ---- storage ---- */
 let storage = { free: 0 };
 
-/** Load disk usage and stored models/packages, then render them. */
+/** Load disk usage and stored models, then render them. */
 async function loadStorage() {
   storage = await api("/api/storage");
   const pct = storage.total ? Math.round(100 * storage.used / storage.total) : 0;
   $("diskBox").innerHTML = bar("Levytila (" + esc(storage.dir) + ")", pct,
-    `Vapaana <b>${gb(storage.free)}</b> / yhteensä ${gb(storage.total)} &middot; mallit ja paketit käyttävät ${gb(storage.models_bytes)}`,
+    `Vapaana <b>${gb(storage.free)}</b> / yhteensä ${gb(storage.total)} &middot; mallit käyttävät ${gb(storage.models_bytes)}`,
     pct >= 90 ? "error" : "");
   $("storeList").innerHTML = storage.items.length ? storage.items.map(i => `
-    <div class="cds--tile item"><div class="info"><strong>${esc(i.name)}${i.kind === "package" ? ".tar" : ""}</strong>
-    <div class="muted"><span class="cds--tag cds--tag--${i.kind === "model" ? "blue" : "gray"}">${i.kind === "model" ? "malli (purettu)" : "siirtopaketti"}</span> ${gb(i.size_bytes)}</div></div>
-    <button class="cds--btn cds--btn--danger--tertiary cds--btn--sm" data-del="${esc(i.name)}" data-kind="${i.kind}">Poista</button></div>`).join("")
+    <div class="cds--tile item"><div class="info"><strong>${esc(i.name)}</strong>
+    <div class="muted">${gb(i.size_bytes)}</div></div>
+    <button class="cds--btn cds--btn--danger--tertiary cds--btn--sm" data-del="${esc(i.name)}">Poista</button></div>`).join("")
     : '<p class="muted">Ei tallennettuja malleja.</p>';
-  document.querySelectorAll("#storeList [data-del]").forEach(b => b.onclick = () => deleteItem(b.dataset.kind, b.dataset.del));
+  document.querySelectorAll("#storeList [data-del]").forEach(b => b.onclick = () => deleteItem(b.dataset.del));
   calcSpace();
 }
 
@@ -359,47 +362,16 @@ function calcSpace() {
     : `<span class="cds--tag cds--tag--red">Ei mahdu</span> tarvitaan ${gb(need)}, puuttuu ${gb(-left)}. Poista malleja tai kasvata levytilaa (ohje: INSTALL.md).`;
 }
 
-/** Delete a model folder or a package after confirmation. */
-async function deleteItem(kind, name) {
-  const what = kind === "model" ? `mallikansio ${name}` : `paketti ${name}.tar (ja .sha256)`;
-  if (!confirm(`Poistetaanko ${what}? Tätä ei voi perua.`)) return;
+/** Delete a model folder after confirmation. */
+async function deleteItem(name) {
+  if (!confirm(`Poistetaanko mallikansio ${name}? Tätä ei voi perua.`)) return;
   try {
-    const r = await api(`/api/storage/${kind === "model" ? "models" : "packages"}/${encodeURIComponent(name)}`, { method: "DELETE" });
+    const r = await api(`/api/storage/models/${encodeURIComponent(name)}`, { method: "DELETE" });
     $("storeMsg").innerHTML = notify("success", `Poistettu ${r.deleted}, vapautui ${gb(r.freed_bytes)}.`);
   } catch (e) { $("storeMsg").innerHTML = notify("error", e.message); }
-  loadStorage(); loadPackages(); loadModels();
+  loadStorage(); loadModels();
 }
 $("calcGb").oninput = calcSpace;
-
-/* ---- packages ---- */
-async function loadPackages() {
-  const d = await api("/api/packages");
-  $("pkgList").innerHTML = d.packages.length ? d.packages.map(p => `
-    <div class="cds--tile item"><div class="info"><strong>${esc(p.name)}</strong>
-    <div class="muted">${gb(p.size_bytes)} &middot; ${p.has_sha256 ? '<span class="cds--tag cds--tag--green">SHA-256 löytyy</span>' : '<span class="cds--tag cds--tag--red">SHA-256 puuttuu</span>'}${p.imported ? ' <span class="cds--tag cds--tag--gray">purettu</span>' : ""}</div></div>
-    <button class="cds--btn cds--btn--primary cds--btn--sm" data-name="${esc(p.name)}" data-sha="${p.has_sha256}" ${p.imported ? "disabled" : ""}>${p.imported ? "Tuotu" : "Tuo"}</button></div>`).join("")
-    : `<p class="muted">Ei paketteja.</p>`;
-  document.querySelectorAll("#pkgList button:not([disabled])").forEach(b => b.onclick = () => importPackage(b.dataset.name, b.dataset.sha === "true"));
-}
-
-async function importPackage(name, hasSha) {
-  let skip = false;
-  if (!hasSha) {
-    if (!confirm("SHA-256-tiedostoa ei löydy. Tuodaanko paketti ilman eheystarkistusta?")) return;
-    skip = true;
-  }
-  try {
-    const j = await post("/api/packages/import", { name, skip_verify: skip });
-    poll("pk", "/api/packages/import/" + j.id, s => {
-      const meta = `<div class="meta"><span>Kulunut: <b>${fmtT(s.elapsed_s)}</b></span>`;
-      if (s.state === "error") { $("pkgStatus").innerHTML = bar(esc(name), 0, esc(s.message || "Virhe"), "error") + meta + "</div>"; return; }
-      if (s.state === "done") { $("pkgStatus").innerHTML = bar(esc(name), 100, "Valmis", "finished") + meta + "</div>"; return; }
-      const left = eta(s.progress, 100, s.stage_elapsed_s);
-      $("pkgStatus").innerHTML = bar(esc(name), s.progress, `${esc(s.stage)} (${s.progress}%)`)
-        + meta + `<span>Vaihe: <b>${fmtT(s.stage_elapsed_s)}</b></span><span>Arvio vaiheelle: <b>${fmtT(left)}</b></span></div>`;
-    }, () => { loadPackages(); loadModels(); loadStorage(); });
-  } catch (e) { $("pkgStatus").innerHTML = notify("error", e.message); }
-}
 
 /* ---- deploy ---- */
 function setLogged(s) {
@@ -486,7 +458,7 @@ function showNext(r) {
   $("next").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-loadInfo().then(() => { loadPackages(); loadStorage(); return api("/api/session"); }).then(setLogged);
+loadInfo().then(() => { loadStorage(); return api("/api/session"); }).then(setLogged);
 </script>
 </body>
 </html>
