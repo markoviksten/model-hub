@@ -34,13 +34,17 @@ Paketti sisältää: sovellus, Python-wheelit (`wheels/`), `tools/oc.exe`. `rsyn
 Mallit tuodaan siirtomedialta: kopioi `<malli>.tar` ja `<malli>.sha256` kansioon `models/` (tai käytä UI:n tuontia).
 
 ## Kontti (sisältää kaiken)
-Sisältää Pythonin, riippuvuudet, Linux-`oc`:n, `tar`in ja `rsync`in.
+Mallit tallennetaan kontin sisään; kontti malleineen viedään air-gapped-ympäristöön image-arkistona. Täysi ohje: [KONTTI-OHJE.md](KONTTI-OHJE.md).
 ```powershell
+# Vaihe 1 (internet): rakenna, käynnistä, lataa mallit UI:ssa, vie
 docker build -t model-hub:latest .
-docker run --rm -p 127.0.0.1:8767:8767 -v ${PWD}/models:/models model-hub:latest
-# tai: docker compose up
+docker run -d --name model-hub -p 127.0.0.1:8767:8767 model-hub:latest
+.\export_with_models.ps1   # -> dist/model-hub-with-models.tar.gz + .sha256
+# Vaihe 2 (air-gapped)
+docker load -i model-hub-with-models.tar.gz
+docker run -d --name model-hub -p 127.0.0.1:8767:8767 model-hub:airgap
 ```
-Air-gapped: `.\build_image.ps1` → `dist/model-hub-image.tar.gz` (+ `.sha256`); kohteessa `docker load -i ...` ja `-e MODEL_HUB_OFFLINE=1 -e MODEL_HUB_LOADER_IMAGE=<peilattu image>`. Podman: sama komennoilla `podman`. Katso [INSTALL.md](INSTALL.md) kohta 3b.
+Varoitus: `docker rm` ja `docker compose down` poistavat kontin ja mallit; pysäytä `docker stop`.
 
 ## Ympäristömuuttujat
 | Muuttuja | Oletus |

@@ -1,6 +1,8 @@
 # Model Hub container: Python, dependencies, oc, rsync and the app in one image.
 # Build:  docker build -t model-hub:latest .
-# Run:    docker run --rm -p 127.0.0.1:8767:8767 -v ./models:/models model-hub:latest
+# Run:    docker run -d --name model-hub -p 127.0.0.1:8767:8767 model-hub:latest
+# Models are stored INSIDE the container (/models, no VOLUME on purpose) so that
+# `docker commit` + `docker save` (export_with_models.ps1) carries them to an air-gapped site.
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/python-312:latest
 FROM ${BASE_IMAGE}
 
@@ -48,7 +50,6 @@ ENV MODEL_HUB_MODELS_DIR=/models \
     PYTHONUNBUFFERED=1
 
 USER 1001
-VOLUME ["/models"]
 EXPOSE 8767
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

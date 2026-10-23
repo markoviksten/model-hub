@@ -2,10 +2,11 @@ services:
   model-hub:
     image: model-hub:latest
     build: .
+    container_name: model-hub
     ports:
       - "127.0.0.1:8767:8767"   # localhost only: the app has no authentication
-    volumes:
-      - ./models:/models
+    # No volumes on purpose: models live inside the container (see KONTTI-OHJE.md).
+    # Use `docker compose stop`, NOT `down` - `down` deletes the container and its models.
     environment:
       MODEL_HUB_OFFLINE: "0"    # set to "1" in an air-gapped environment
       # MODEL_HUB_LOADER_IMAGE: registry.example.com/ubi9/ubi:latest

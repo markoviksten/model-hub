@@ -83,34 +83,27 @@ Lataa malli yhdistetyllä koneella Model Hubin "Hae malli" -välilehdellä ja va
 
 ## 3b. Konttiasennus (suositeltu: sisältää kaiken)
 
-Kontti sisältää Pythonin, riippuvuudet, Linux-`oc`:n (SHA-256-tarkistettu), `tar`in ja `rsync`in. Hostille ei tarvita Pythonia eikä `oc`:ta, ja Linux-`oc` poistaa zip-paketin OS-yhteensopivuusongelman. Kontti ajaa ei-root-käyttäjänä (UID 1001, toimii myös satunnaisella UID:llä).
+Kontti sisältää Pythonin, riippuvuudet, Linux-`oc`:n (SHA-256-tarkistettu), `tar`in ja `rsync`in. Mallit tallennetaan **kontin sisään**, ja koko kontti malleineen viedään image-arkistona air-gapped-ympäristöön.
 
-### Yhdistetty kone
+**Täydellinen ohje (vaihe 1 internetissä, vaihe 2 air-gapped): [KONTTI-OHJE.md](KONTTI-OHJE.md).**
+
+Tiivistelmä:
 
 ```powershell
+# Vaihe 1 (internet)
 docker build -t model-hub:latest .
-docker run --rm -p 127.0.0.1:8767:8767 -v ${PWD}/models:/models model-hub:latest
-# tai
-docker compose up
+docker run -d --name model-hub -p 127.0.0.1:8767:8767 model-hub:latest
+# lataa mallit UI:ssa, sitten:
+.\export_with_models.ps1          # -> dist\model-hub-with-models.tar.gz + .sha256
+
+# Vaihe 2 (air-gapped)
+docker load -i model-hub-with-models.tar.gz
+docker run -d --name model-hub -p 127.0.0.1:8767:8767 -e MODEL_HUB_LOADER_IMAGE=<peilattu image> model-hub:airgap
 ```
 
-Podman: korvaa `docker` komennolla `podman` (esim. `podman run --rm -p 127.0.0.1:8767:8767 -v ./models:/models:Z model-hub:latest`). Avaa http://127.0.0.1:8767.
+Varoitus: `docker rm`, `docker run --rm` ja `docker compose down` poistavat kontin ja sen mallit. Pysäytä komennolla `docker stop`. Podman: korvaa `docker` komennolla `podman`.
 
-### Air-gapped
-
-1. Yhdistetyllä koneella: `.\build_image.ps1` → `dist\model-hub-image.tar.gz` ja `.sha256` (noin 410 MB).
-2. Siirrä molemmat kohteeseen ja tarkista summa (kuten kohdassa 3.2).
-3. Kohteessa:
-   ```powershell
-   docker load -i model-hub-image.tar.gz      # podman load -i ...
-   docker run --rm -p 127.0.0.1:8767:8767 -e MODEL_HUB_OFFLINE=1 `
-     -e MODEL_HUB_LOADER_IMAGE=<oma-rekisteri>/ubi9/ubi:latest `
-     -v ${PWD}/models:/models model-hub:latest
-   ```
-4. Peilaa apupodin image (`ubi9/ubi`, sisältää `tar`) clusterin rekisteriin ja aseta se `MODEL_HUB_LOADER_IMAGE`-muuttujalla.
-5. Kontti voidaan myös työntää sisäiseen rekisteriin (`docker tag` + `docker push`).
-
-Mallit ja `.tar`-paketit ovat hostin `models/`-kansiossa (volume `/models`).
+Tyhjä, mallittomalla imagella toimiva air-gapped-versio: `.\build_image.ps1` → `dist\model-hub-image.tar.gz`.
 
 ### OpenShiftissä ajaminen (valinnainen)
 
@@ -118,12 +111,7 @@ Image toimii OpenShiftin satunnaisella UID:llä. Sovelluksessa ei ole autentikoi
 
 ### Levytila
 
-Mallit eivät tallennu kontin sisään vaan **hostin kansioon** `models/` (volume `/models`). Tilaa on siis niin paljon kuin hostin levyllä on vapaana; kontin oma kerros (~1,3 GB) ei kasva. Jos ajat ilman `-v`-volumea, mallit menevät kontin kirjoituskerrokseen ja katoavat kontin poistuessa.
-
-- **Levytila ja tallennetut mallit** -osio (välilehti 1) näyttää vapaan ja käytetyn tilan, ja laskuri kertoo mahtuuko tietyn kokoinen malli (`.tar`-paketin kanssa tarvitaan kaksinkertainen tila).
-- **Poista** vapauttaa tilaa: purettu mallikansio ja `.tar`-paketti poistetaan erikseen. Poisto on estetty latauksen, tuonnin ja kopioinnin aikana.
-- Lataus estetään (HTTP 507), jos tila ei riitä.
-- **Tilan kasvattaminen:** vapauta tilaa hostin levyltä, valitse toinen kansio (`-v D:\models:/models`) tai Rancher Desktop / Docker Desktop -käytössä kasvata VM:n levyä asetuksista. Linux-hostissa laajenna tiedostojärjestelmää (LVM) tai liitä uusi levy `models/`-kansioon.
+Mallit asuvat kontin kirjoituskerroksessa (Rancher/Docker Desktopissa VM:n levyllä). **Levytila ja tallennetut mallit** -osio (välilehti 1) näyttää vapaan tilan, laskuri kertoo mahtuuko malli, ja **Poista** vapauttaa tilaa. Lataus estetään (HTTP 507), jos tila ei riitä. Tilan kasvatus: kasvata Docker/Rancher Desktop -VM:n levyä tai siirrä Docker data-root isommalle levylle.
 
 ## 4. Ensimmäinen käyttö
 
