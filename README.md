@@ -8,6 +8,30 @@ Yksi sovellus: malli haetaan (tai tuodaan paketista) ja viedään OpenShift AI:n
 1. **Hae malli** – lataus Hugging Facesta (haku hakusanalla tai repo ID käsin; piilossa offline-tilassa).
 2. **Vie OpenShift AI:hin** – `oc login`, projekti, PVC, loader-pod, kopiointi, tarkistus, siivous.
 
+## Kuvakaappaukset
+
+Vaalea ja tumma teema (vaihto ylärivin napista).
+
+**1. Hae malli**
+
+![Hae malli](docs/1-hae-malli.png)
+
+<details><summary>Tumma teema</summary>
+
+![Hae malli, tumma](docs/1-hae-malli-tumma.png)
+
+</details>
+
+**2. Vie OpenShift AI:hin: air-gapped-ohje vaihekaavioineen**
+
+![Air-gapped-ohje](docs/2-air-gap-ohje.png)
+
+<details><summary>Tumma teema</summary>
+
+![Air-gapped-ohje, tumma](docs/2-air-gap-ohje-tumma.png)
+
+</details>
+
 UI on rakennettu IBM Carbon Design Systemillä (`static/carbon.css`, IBM Plex -fontit `static/fonts/`; ei ulkoisia riippuvuuksia, toimii offline). Edistymispalkeissa näkyy kulunut aika, nopeus ja arvio jäljellä olevasta ajasta; deploy-vaiheilla on omat kestonsa.
 
 ## Yhdistetty kone
