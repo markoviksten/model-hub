@@ -255,7 +255,7 @@ async function loadInfo() {
 
 let searchState = { q: "", sort: "downloads", page: 0 };
 
-/** Search Hugging Face (10 hits/page) and list them; "Valitse" fills the repo field, "Lataa" downloads. */
+/** Search Hugging Face (10 hits/page) and list them; "Valitse" fills the repo field (download with the Lataa button). */
 async function searchModels(page = 0, fresh = true) {
   if (fresh) searchState = { q: $("q").value.trim(), sort: $("sort").value, page: 0 };
   if (searchState.q.length < 2) return;
@@ -269,8 +269,7 @@ async function searchModels(page = 0, fresh = true) {
       + d.items.map(h => `<tr><td class="nm" title="${esc(h.repo_id)}">${esc(h.repo_id)}</td><td>${esc(h.task || "–")}</td>
       <td class="num">${h.size_bytes ? gb(h.size_bytes) : "–"}</td><td class="num">${n(h.downloads)}</td><td class="num">${n(h.likes)}</td>
       <td>${esc(h.created || "–")}</td><td>${esc(h.modified || "–")}</td>
-      <td class="act"><button class="cds--btn cds--btn--ghost cds--btn--sm" data-pick="${esc(h.repo_id)}">Valitse</button>
-      <button class="cds--btn cds--btn--primary cds--btn--sm" data-repo="${esc(h.repo_id)}">Lataa</button></td></tr>`).join("")
+      <td class="act"><button class="cds--btn cds--btn--ghost cds--btn--sm" data-pick="${esc(h.repo_id)}">Valitse</button></td></tr>`).join("")
       + "</tbody></table>";
     const pager = (d.page > 0 || d.has_next) ? `<div style="display:flex; gap:.5rem; align-items:center; margin:.5rem 0">
       <button class="cds--btn cds--btn--tertiary cds--btn--sm" id="pgPrev" ${d.page > 0 ? "" : "disabled"}>‹ Edellinen</button>
@@ -278,7 +277,6 @@ async function searchModels(page = 0, fresh = true) {
       <button class="cds--btn cds--btn--tertiary cds--btn--sm" id="pgNext" ${d.has_next ? "" : "disabled"}>Seuraava ›</button></div>` : "";
     $("searchResults").innerHTML = d.items.length ? rows + pager : '<span class="muted">Ei tuloksia.</span>';
     document.querySelectorAll("#searchResults [data-pick]").forEach(b => b.onclick = () => { $("repo").value = b.dataset.pick; });
-    document.querySelectorAll("#searchResults [data-repo]").forEach(b => b.onclick = () => startDownload(b.dataset.repo));
     if ($("pgPrev")) $("pgPrev").onclick = () => searchModels(d.page - 1, false);
     if ($("pgNext")) $("pgNext").onclick = () => searchModels(d.page + 1, false);
   } catch (e) { $("searchResults").innerHTML = notify("error", e.message); }
