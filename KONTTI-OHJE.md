@@ -73,6 +73,8 @@ Mallipainot pakkautuvat huonosti, joten arkisto on lähes yhtä suuri kuin malli
 
 ### 1.4 Kopioi tikulle
 
+(Sovelluksen yläpalkin **Vie air-gappediin** -painike näyttää export-komennon kopioitavana. Komento ajetaan silti isäntäkoneen terminaalissa, koska kontti ei voi paketoida itseään.)
+
 Vaiheen 1 koneella (internet) kansiossa `model_hub/dist/` on kaksi tiedostoa. Kopioi ne tikulle mihin tahansa kansioon (esim. tikun juureen tai kansioon `model-hub-siirto`):
 
 | Tiedosto | Pakollinen | Mihin tarvitaan |

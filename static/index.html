@@ -65,28 +65,35 @@
   .cds--progress-bar { margin: .5rem 0; }
   ol.next li { margin: .4rem 0; }
   .cds--header__name { margin-right: auto; }
+  .cds--header { gap: .75rem; }
+  #exportBtn { white-space: nowrap; }
   #helpBtn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--cds-text-secondary, #525252); background: none; color: var(--cds-text-primary); font: italic 700 1rem/1 "IBM Plex Serif", Georgia, serif; cursor: pointer; padding: 0; }
   #helpBtn:hover { background: var(--cds-layer-hover); }
   #helpBtn:focus-visible { outline: 2px solid var(--cds-focus, #0f62fe); outline-offset: 2px; }
-  dialog#helpDlg { width: min(60rem, 94vw); max-height: 88vh; padding: 0; border: 0; background: var(--cds-layer-01, #fff); color: var(--cds-text-primary); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
-  dialog#helpDlg::backdrop { background: rgba(22,22,22,.6); }
-  #helpDlg header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-bottom: 1px solid var(--cds-border-subtle); position: sticky; top: 0; background: inherit; }
-  #helpDlg header h2 { margin: 0; }
-  #helpBody { padding: .5rem 1.5rem 2rem; overflow: auto; max-height: calc(88vh - 4.5rem); font-size: .875rem; line-height: 1.5; }
-  #helpBody h3 { font-size: 1.125rem; font-weight: 600; margin: 1.5rem 0 .5rem; }
-  #helpBody h4 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 .5rem; }
-  #helpBody pre { max-height: none; margin: .5rem 0; }
-  #helpBody ol { list-style: decimal; padding-left: 1.5rem; margin: .5rem 0; }
-  #helpBody li { margin: .25rem 0; }
-  #helpBody p { margin: .5rem 0; }
-  #helpBody table { border-collapse: collapse; width: 100%; margin: .5rem 0; font-size: .8125rem; }
-  #helpBody th, #helpBody td { text-align: left; vertical-align: top; padding: .375rem .625rem; border-bottom: 1px solid var(--cds-border-subtle); }
-  #helpBody th { background: var(--cds-layer-accent-01, #e0e0e0); }
+  dialog.dlg { width: min(60rem, 94vw); max-height: 88vh; padding: 0; border: 0; background: var(--cds-layer-01, #fff); color: var(--cds-text-primary); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  dialog.dlg::backdrop { background: rgba(22,22,22,.6); }
+  dialog.dlg header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-bottom: 1px solid var(--cds-border-subtle); position: sticky; top: 0; background: inherit; }
+  dialog.dlg header h2 { margin: 0; }
+  .dlgbody { padding: .5rem 1.5rem 2rem; overflow: auto; max-height: calc(88vh - 4.5rem); font-size: .875rem; line-height: 1.5; }
+  .dlgbody h3 { font-size: 1.125rem; font-weight: 600; margin: 1.5rem 0 .5rem; }
+  .dlgbody h4 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 .5rem; }
+  .dlgbody pre { max-height: none; margin: .5rem 0; }
+  .dlgbody ol { list-style: decimal; padding-left: 1.5rem; margin: .5rem 0; }
+  .dlgbody li { margin: .25rem 0; }
+  .dlgbody p { margin: .5rem 0; }
+  .dlgbody table { border-collapse: collapse; width: 100%; margin: .5rem 0; font-size: .8125rem; }
+  .dlgbody th, .dlgbody td { text-align: left; vertical-align: top; padding: .375rem .625rem; border-bottom: 1px solid var(--cds-border-subtle); }
+  .dlgbody th { background: var(--cds-layer-accent-01, #e0e0e0); }
+  ul.dlglist { list-style: disc; padding-left: 1.5rem; margin: .5rem 0; }
+  .cmdbox { position: relative; }
+  .cmdbox pre { padding-right: 5.5rem; }
+  .cmdbox .copybtn { position: absolute; top: .5rem; right: .5rem; min-block-size: 1.75rem; block-size: 1.75rem; padding: 0 .75rem !important; font-size: .75rem; }
 </style>
 </head>
 <body>
 <header class="cds--header" aria-label="Model Hub">
   <span class="cds--header__name"><span class="cds--header__name--prefix">IBM&nbsp;</span>Model Hub</span>
+  <button class="cds--btn cds--btn--tertiary cds--btn--sm" id="exportBtn" type="button" aria-haspopup="dialog">Vie air-gappediin</button>
   <button id="helpBtn" type="button" aria-label="Ohje" aria-haspopup="dialog" title="Ohje">i</button>
 </header>
 
@@ -187,10 +194,39 @@
 </section>
 </main>
 
-<dialog id="helpDlg" aria-labelledby="helpTitle">
+<dialog id="helpDlg" class="dlg" aria-labelledby="helpTitle">
   <header><h2 id="helpTitle">Ohje: internetistä air-gappediin</h2>
     <button class="cds--btn cds--btn--ghost cds--btn--sm" id="helpClose" type="button">Sulje</button></header>
-  <div id="helpBody"><span class="muted">Ladataan...</span></div>
+  <div id="helpBody" class="dlgbody"><span class="muted">Ladataan...</span></div>
+</dialog>
+
+<dialog id="exportDlg" class="dlg" aria-labelledby="exportTitle">
+  <header><h2 id="exportTitle">Vie air-gapped-ympäristöön</h2>
+    <button class="cds--btn cds--btn--ghost cds--btn--sm" id="exportClose" type="button">Sulje</button></header>
+  <div class="dlgbody">
+    <p id="exportSummary" class="muted"></p>
+    <h3>1. Aja komento kontin ulkopuolella</h3>
+    <p>Kontti ei voi paketoida itseään, joten komento ajetaan <strong>isäntäkoneen terminaalissa</strong> kansiossa <code>model_hub</code>, ei tässä sovelluksessa. Lataukset ja kopioinnit kannattaa antaa valmistua ensin.</p>
+    <p><strong>Bash</strong> (Linux, macOS, Git Bash, WSL):</p>
+    <div class="cmdbox"><pre>./export.sh</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    <p><strong>Windows PowerShell:</strong></p>
+    <div class="cmdbox"><pre>powershell.exe -ExecutionPolicy Bypass -File ./export_with_models.ps1</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    <p>Nopeampi (ei pakkausta, malliarkisto ei pakkaudu juuri): lisää loppuun <code>--no-compress</code> (PowerShell: <code>-NoCompress</code>).</p>
+    <h3>2. Jos skriptejä ei ole saatavilla</h3>
+    <p>Sama käsin (kontin nimi <code>model-hub</code>):</p>
+    <div class="cmdbox"><pre>docker commit --change "ENV MODEL_HUB_OFFLINE=1" model-hub model-hub:airgap
+mkdir -p dist
+docker save model-hub:airgap | gzip > dist/model-hub-with-models.tar.gz
+cd dist && sha256sum model-hub-with-models.tar.gz > model-hub-with-models.tar.gz.sha256</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    <h3>3. Kopioi tikulle</h3>
+    <ul class="dlglist">
+      <li><code>dist/model-hub-with-models.tar.gz</code> ja <code>dist/model-hub-with-models.tar.gz.sha256</code> (pakolliset)</li>
+      <li><code>start.sh</code> kansiosta <code>model_hub</code> (suositus)</li>
+    </ul>
+    <p>Tikku: exFAT tai NTFS (FAT32 ei salli yli 4 GB:n tiedostoja). Vapaata tilaa tarvitaan vähintään arkiston koko.</p>
+    <p>Air-gapped-päässä toimi ohjeen mukaan: avaa <strong>(i)</strong>-ohje ja katso kohta <em>Vaihe 2</em>.</p>
+    <p class="muted"><strong>Varoitus:</strong> älä poista konttia (<code>docker rm</code>) ennen kuin siirto on varmistettu. Se poistaa myös mallit.</p>
+  </div>
 </dialog>
 
 <script>
@@ -510,6 +546,38 @@ async function openHelp() {
     helpLoaded = true;
   } catch { $("helpBody").innerHTML = notify("error", "Ohjetta ei voitu ladata."); }
 }
+/** Open the export dialog with a fresh summary of the models that will be included. */
+async function openExport() {
+  $("exportDlg").showModal();
+  try {
+    await loadStorage();
+    const n = storage.items.length;
+    $("exportSummary").textContent = n
+      ? `Exporttiin tulee ${n} mallia, yhteensä ${gb(storage.models_bytes)} (arkisto on suunnilleen yhtä iso). Vapaana tilaa: ${gb(storage.free)}.`
+      : "Kontissa ei ole malleja. Lataa ensin mallit, muuten export on tyhjä.";
+  } catch { $("exportSummary").textContent = ""; }
+}
+$("exportBtn").onclick = openExport;
+$("exportClose").onclick = () => $("exportDlg").close();
+$("exportDlg").addEventListener("click", e => { if (e.target === $("exportDlg")) $("exportDlg").close(); });
+
+/** Copy the text of the <pre> in front of a .copybtn to the clipboard (with a legacy fallback) and flash the button label. */
+document.addEventListener("click", async e => {
+  const b = e.target.closest(".copybtn");
+  if (!b) return;
+  const text = b.parentElement.querySelector("pre").textContent;
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; }
+  catch {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
+    ta.remove();
+  }
+  b.textContent = ok ? "Kopioitu" : "Valitse ja kopioi käsin";
+  setTimeout(() => { b.textContent = "Kopioi"; }, 2000);
+});
+
 $("helpBtn").onclick = openHelp;
 $("helpClose").onclick = () => $("helpDlg").close();
 $("helpDlg").addEventListener("click", e => { if (e.target === $("helpDlg")) $("helpDlg").close(); });
