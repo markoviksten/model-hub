@@ -64,11 +64,30 @@
   .cds--progress-step--error .cds--progress-label, .cds--progress-step--error svg { color: var(--cds-support-error); fill: var(--cds-support-error); }
   .cds--progress-bar { margin: .5rem 0; }
   ol.next li { margin: .4rem 0; }
+  .cds--header__name { margin-right: auto; }
+  #helpBtn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--cds-text-secondary, #525252); background: none; color: var(--cds-text-primary); font: italic 700 1rem/1 "IBM Plex Serif", Georgia, serif; cursor: pointer; padding: 0; }
+  #helpBtn:hover { background: var(--cds-layer-hover); }
+  #helpBtn:focus-visible { outline: 2px solid var(--cds-focus, #0f62fe); outline-offset: 2px; }
+  dialog#helpDlg { width: min(60rem, 94vw); max-height: 88vh; padding: 0; border: 0; background: var(--cds-layer-01, #fff); color: var(--cds-text-primary); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+  dialog#helpDlg::backdrop { background: rgba(22,22,22,.6); }
+  #helpDlg header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-bottom: 1px solid var(--cds-border-subtle); position: sticky; top: 0; background: inherit; }
+  #helpDlg header h2 { margin: 0; }
+  #helpBody { padding: .5rem 1.5rem 2rem; overflow: auto; max-height: calc(88vh - 4.5rem); font-size: .875rem; line-height: 1.5; }
+  #helpBody h3 { font-size: 1.125rem; font-weight: 600; margin: 1.5rem 0 .5rem; }
+  #helpBody h4 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 .5rem; }
+  #helpBody pre { max-height: none; margin: .5rem 0; }
+  #helpBody ol { list-style: decimal; padding-left: 1.5rem; margin: .5rem 0; }
+  #helpBody li { margin: .25rem 0; }
+  #helpBody p { margin: .5rem 0; }
+  #helpBody table { border-collapse: collapse; width: 100%; margin: .5rem 0; font-size: .8125rem; }
+  #helpBody th, #helpBody td { text-align: left; vertical-align: top; padding: .375rem .625rem; border-bottom: 1px solid var(--cds-border-subtle); }
+  #helpBody th { background: var(--cds-layer-accent-01, #e0e0e0); }
 </style>
 </head>
 <body>
 <header class="cds--header" aria-label="Model Hub">
   <span class="cds--header__name"><span class="cds--header__name--prefix">IBM&nbsp;</span>Model Hub</span>
+  <button id="helpBtn" type="button" aria-label="Ohje" aria-haspopup="dialog" title="Ohje">i</button>
 </header>
 
 <main>
@@ -167,6 +186,12 @@
   <div id="next" class="cds--tile hidden"></div>
 </section>
 </main>
+
+<dialog id="helpDlg" aria-labelledby="helpTitle">
+  <header><h2 id="helpTitle">Ohje: internetistä air-gappediin</h2>
+    <button class="cds--btn cds--btn--ghost cds--btn--sm" id="helpClose" type="button">Sulje</button></header>
+  <div id="helpBody"><span class="muted">Ladataan...</span></div>
+</dialog>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -470,6 +495,24 @@ function showNext(r) {
   $("next").classList.remove("hidden");
   $("next").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
+
+/* ---- help dialog ---- */
+let helpLoaded = false;
+
+/** Open the help dialog; the static help text is fetched once from /static/help.html. */
+async function openHelp() {
+  $("helpDlg").showModal();
+  if (helpLoaded) return;
+  try {
+    const r = await fetch("/static/help.html");
+    if (!r.ok) throw new Error();
+    $("helpBody").innerHTML = await r.text();
+    helpLoaded = true;
+  } catch { $("helpBody").innerHTML = notify("error", "Ohjetta ei voitu ladata."); }
+}
+$("helpBtn").onclick = openHelp;
+$("helpClose").onclick = () => $("helpDlg").close();
+$("helpDlg").addEventListener("click", e => { if (e.target === $("helpDlg")) $("helpDlg").close(); });
 
 loadInfo().then(() => { loadStorage(); return api("/api/session"); }).then(setLogged);
 </script>

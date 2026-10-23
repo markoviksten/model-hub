@@ -1,0 +1,97 @@
+<h3>Yleiskuva</h3>
+<p>Model Hub siirtää Hugging Face -mallin internet-koneelta air-gapped-ympäristöön ja sieltä OpenShift AI:n PVC:lle. Mallit tallennetaan <strong>kontin sisään</strong>, ja koko kontti vietään malleineen siirtotiedostona.</p>
+<ol>
+  <li><strong>Vaihe 1</strong> (internet): lataa mallit kontin sisään ja tee siirtotiedosto.</li>
+  <li><strong>Siirto</strong>: kopioi tiedostot tikulle ja air-gapped-koneelle.</li>
+  <li><strong>Vaihe 2</strong> (air-gapped): lataa kontti, käynnistä se ja kopioi malli PVC:lle.</li>
+</ol>
+
+<h3>Vaihe 1: internet-kone (kansio <code>model_hub</code>)</h3>
+<pre>./start.sh      # rakentaa imagen ja käynnistää kontin
+# avaa http://127.0.0.1:8767, hae malli (Hae → Valitse) ja paina Lataa
+./stop.sh       # valinnainen: pysäyttää kontin, mallit säilyvät
+./export.sh     # tekee siirtotiedostot dist/-kansioon (--no-compress nopeuttaa)</pre>
+<p><strong>Varoitus:</strong> älä käytä <code>docker rm</code>, <code>docker run --rm</code> tai <code>docker compose down</code>. Ne poistavat kontin ja sen mallit. Pysäytä aina komennolla <code>./stop.sh</code> tai <code>docker stop model-hub</code>.</p>
+<p>Lataus voidaan keskeyttää <strong>Keskeytä lataus</strong> -painikkeella, jolloin keskeneräiset tiedostot poistetaan. Levytila ja mallien poisto ovat oikeassa sarakkeessa.</p>
+
+<h3>Siirto tikulle</h3>
+<table>
+  <thead><tr><th>Tiedosto</th><th>Mistä</th><th>Tarve</th></tr></thead>
+  <tbody>
+    <tr><td><code>model-hub-with-models.tar.gz</code></td><td><code>model_hub/dist/</code></td><td>pakollinen (kontti malleineen)</td></tr>
+    <tr><td><code>model-hub-with-models.tar.gz.sha256</code></td><td><code>model_hub/dist/</code></td><td>pakollinen (tarkistussumma)</td></tr>
+    <tr><td><code>start.sh</code></td><td><code>model_hub/</code></td><td>suositus (käynnistää kontin)</td></tr>
+    <tr><td><code>ubi9.tar</code></td><td>sinne, missä ajoit <code>docker save</code></td><td>vain jos klusterissa ei ole <code>tar</code>-sisältävää imagea</td></tr>
+  </tbody>
+</table>
+<p>Tee <code>ubi9.tar</code> internet-koneella:</p>
+<pre>docker pull registry.access.redhat.com/ubi9/ubi:latest
+docker save -o ubi9.tar registry.access.redhat.com/ubi9/ubi:latest</pre>
+<p>Tikun pitää olla exFAT tai NTFS (FAT32 ei sisällä yli 4 GB:n tiedostoja). Air-gapped-koneella tarvitaan vapaata levytilaa noin kaksi kertaa arkiston koko.</p>
+
+<h3>Vaihe 2: air-gapped-kone</h3>
+<h4>2.1 Kopioi, tarkista ja lataa</h4>
+<pre>cd ~/model-hub-siirto        # kansio, johon kopioit tikun tiedostot
+sha256sum -c model-hub-with-models.tar.gz.sha256   # pitää tulostaa: ...: OK
+docker load -i model-hub-with-models.tar.gz
+docker images | grep model-hub                      # näkyy model-hub:airgap</pre>
+<p>Windows PowerShell: <code>(Get-FileHash model-hub-with-models.tar.gz -Algorithm SHA256).Hash.ToLower()</code> ja vertaa tulosta <code>.sha256</code>-tiedostoon. Jos summa ei täsmää, kopioi tiedosto uudelleen.</p>
+
+<h4>2.2 Tuo apupodin image klusteriin</h4>
+<p>Kun malli kopioidaan PVC:lle, klusteriin käynnistyy hetkeksi apupodi, joka tarvitsee imagen, jossa on <code>tar</code>. Air-gapped-klusteri ei voi hakea sitä internetistä, joten image pitää olla klusterin omassa rekisterissä. <code>&lt;oma-rekisteri&gt;</code> tarkoittaa sitä rekisteriä, josta <em>klusteri</em> hakee imaget.</p>
+<p>Tarkista ensin, onko sopiva image jo klusterissa:</p>
+<pre>oc run tartest --rm -it --restart=Never --image=&lt;image&gt; -- tar --version</pre>
+<p>Jos ei ole, tuo <code>ubi9.tar</code> klusterin sisäiseen rekisteriin:</p>
+<pre>docker load -i ubi9.tar
+oc login ...
+oc get route default-route -n openshift-image-registry     # &lt;reitti&gt;
+docker login -u $(oc whoami) -p $(oc whoami -t) &lt;reitti&gt;
+docker tag  registry.access.redhat.com/ubi9/ubi:latest &lt;reitti&gt;/&lt;projekti&gt;/ubi9:latest
+docker push &lt;reitti&gt;/&lt;projekti&gt;/ubi9:latest</pre>
+<p>Jos reittiä ei ole, ylläpito avaa sen: <code>oc patch configs.imageregistry.operator.openshift.io/cluster --type merge -p '{"spec":{"defaultRoute":true}}'</code></p>
+<p><code>&lt;projekti&gt;</code> on OpenShift-projekti, johon malli kopioidaan. Podin käyttämä osoite on:</p>
+<pre>image-registry.openshift-image-registry.svc:5000/&lt;projekti&gt;/ubi9:latest</pre>
+<p>Jos yrityksellä on oma rekisteri (Quay, Harbor, Artifactory), käytä sen osoitetta ja kysy se ylläpidolta. Jos image on eri projektissa kuin kohde, anna kohdeprojektille lupa: <code>oc policy add-role-to-group system:image-puller system:serviceaccounts:&lt;kohdeprojekti&gt; -n &lt;imagen-projekti&gt;</code></p>
+
+<h4>2.3 Käynnistä Model Hub</h4>
+<pre>MODEL_HUB_IMAGE=model-hub:airgap \
+MODEL_HUB_LOADER_IMAGE=image-registry.openshift-image-registry.svc:5000/&lt;projekti&gt;/ubi9:latest \
+bash ./start.sh</pre>
+<p>Tai ilman skriptiä:</p>
+<pre>docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 \
+  -e MODEL_HUB_LOADER_IMAGE=image-registry.openshift-image-registry.svc:5000/&lt;projekti&gt;/ubi9:latest \
+  model-hub:airgap</pre>
+<p>Avaa http://127.0.0.1:8767. Sivulla lukee <em>offline-tila</em>, ja oikeassa sarakkeessa näkyvät kontin mallit.</p>
+
+<h4>2.4 Vie malli OpenShift AI:hin</h4>
+<ol>
+  <li>Avaa välilehti <strong>2. Vie OpenShift AI:hin</strong>.</li>
+  <li>Liitä konsolin <em>Copy login command</em> -komento ja paina <strong>Kirjaudu</strong>.</li>
+  <li>Valitse malli, projekti, PVC:n nimi ja koko (koko ehdotetaan).</li>
+  <li>Paina <strong>Kopioi malli PVC:lle</strong>. <strong>Tyhjennä</strong> nollaa lomakkeen ja etenemisen seuraavaa kopiointia varten.</li>
+  <li>Tee deployment OpenShift AI:ssa sovelluksen näyttämien ohjeiden mukaan: <em>Models → Deploy model</em>, Cluster storage, vLLM-runtime.</li>
+</ol>
+
+<h3>Arkipäivän komennot</h3>
+<table>
+  <thead><tr><th>Komento</th><th>Mitä tekee</th></tr></thead>
+  <tbody>
+    <tr><td><code>./start.sh</code></td><td>Käynnistää kontin (mallit säilyvät).</td></tr>
+    <tr><td><code>./stop.sh</code></td><td>Pysäyttää kontin (mallit säilyvät).</td></tr>
+    <tr><td><code>./export.sh</code></td><td>Tekee uuden siirtokopion tikulle.</td></tr>
+  </tbody>
+</table>
+
+<h3>Ongelmatilanteet</h3>
+<table>
+  <thead><tr><th>Oire</th><th>Korjaus</th></tr></thead>
+  <tbody>
+    <tr><td><code>docker</code>: <em>Access is denied</em></td><td>Aja shell ja Rancher/Docker Desktop samalla oikeustasolla (molemmat tavallisena käyttäjänä tai molemmat järjestelmänvalvojana).</td></tr>
+    <tr><td><code>ImagePullBackOff</code> apupodissa</td><td>Apupodin imagea ei löydy klusterin rekisteristä tai osoite on väärä. Ks. 2.2.</td></tr>
+    <tr><td><code>Permission denied</code> PVC:llä</td><td>Valitse <em>Aja apupodi rootina</em> (vaatii <code>anyuid</code>-oikeuden).</td></tr>
+    <tr><td>PVC jo käytössä</td><td>RWO-PVC voi olla vain yhden podin käytössä. Pysäytä käyttäjä tai käytä toista PVC:tä.</td></tr>
+    <tr><td>Mallit puuttuvat kohteessa</td><td>Export tehtiin tyhjästä tai väärästä kontista. Aja <code>./export.sh -c &lt;kontin nimi&gt;</code>.</td></tr>
+    <tr><td>Lataus ei onnistu</td><td>Offline-tilassa lataus Hugging Facesta on pois käytöstä. Lataa mallit vaiheessa 1.</td></tr>
+  </tbody>
+</table>
+<p class="muted">Täydellinen ohje: <code>KONTTI-OHJE.md</code> ja <code>INSTALL.md</code>.</p>
