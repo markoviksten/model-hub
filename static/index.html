@@ -20,6 +20,16 @@
   .cds--tile.item { display: flex; align-items: center; gap: 1rem; margin-bottom: .5rem; }
   .cds--tile.item .info { flex: 1; }
   .cds--inline-notification { max-inline-size: none; min-inline-size: 0; margin: 1rem 0; }
+  table.restbl { width: 100%; border-collapse: collapse; font-size: .75rem; margin-bottom: .5rem; }
+  table.restbl th { text-align: left; font-weight: 600; padding: .25rem .5rem; background: var(--cds-layer-accent-01, #e0e0e0); white-space: nowrap; }
+  table.restbl td { padding: .125rem .5rem; border-bottom: 1px solid var(--cds-border-subtle); white-space: nowrap; }
+  table.restbl tr:hover td { background: var(--cds-layer-hover); }
+  table.restbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.restbl td.nm { max-width: 15rem; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  table.restbl td.act { text-align: right; }
+  table.restbl .cds--btn--sm { min-block-size: 1.5rem; block-size: 1.5rem; min-inline-size: 0; inline-size: auto; padding: 0 .5rem !important; font-size: .75rem; }
+ table.restbl td.act { white-space: nowrap; }
+  #searchResults { overflow-x: auto; }
   .cds--tabs { margin-top: 1.5rem; border-bottom: 1px solid var(--cds-border-subtle); }
   .cds--tabs .cds--tab--list { display: flex; }
   .cds--header { display: flex; align-items: center; padding: 0 1rem; }
@@ -250,12 +260,15 @@ async function searchModels(page = 0, fresh = true) {
   $("searchResults").innerHTML = '<span class="muted">Haetaan...</span>';
   try {
     const d = await api(`/api/search?q=${encodeURIComponent(searchState.q)}&sort=${searchState.sort}&page=${page}`);
-    const rows = d.items.map(h => `
-      <div class="cds--tile item"><div class="info"><strong>${esc(h.repo_id)}</strong>
-      <div class="muted">${h.task ? esc(h.task) + " &middot; " : ""}${h.downloads.toLocaleString("fi-FI")} latausta &middot; ${h.likes.toLocaleString("fi-FI")} tykkäystä
-      &middot; luotu ${esc(h.created || "–")} &middot; päivitetty ${esc(h.modified || "–")}</div></div>
-      <button class="cds--btn cds--btn--secondary cds--btn--sm" data-pick="${esc(h.repo_id)}">Valitse</button>
-      <button class="cds--btn cds--btn--primary cds--btn--sm" data-repo="${esc(h.repo_id)}">Lataa</button></div>`).join("");
+    const n = v => v.toLocaleString("fi-FI");
+    const rows = `<table class="restbl"><thead><tr><th>Malli</th><th>Tehtävä</th><th class="num">Koko</th>
+      <th class="num">Lataukset</th><th class="num">Tykkäykset</th><th>Luotu</th><th>Päivitetty</th><th></th></tr></thead><tbody>`
+      + d.items.map(h => `<tr><td class="nm" title="${esc(h.repo_id)}">${esc(h.repo_id)}</td><td>${esc(h.task || "–")}</td>
+      <td class="num">${h.size_bytes ? gb(h.size_bytes) : "–"}</td><td class="num">${n(h.downloads)}</td><td class="num">${n(h.likes)}</td>
+      <td>${esc(h.created || "–")}</td><td>${esc(h.modified || "–")}</td>
+      <td class="act"><button class="cds--btn cds--btn--ghost cds--btn--sm" data-pick="${esc(h.repo_id)}">Valitse</button>
+      <button class="cds--btn cds--btn--primary cds--btn--sm" data-repo="${esc(h.repo_id)}">Lataa</button></td></tr>`).join("")
+      + "</tbody></table>";
     const pager = (d.page > 0 || d.has_next) ? `<div style="display:flex; gap:.5rem; align-items:center; margin:.5rem 0">
       <button class="cds--btn cds--btn--tertiary cds--btn--sm" id="pgPrev" ${d.page > 0 ? "" : "disabled"}>‹ Edellinen</button>
       <span class="muted">Sivu ${d.page + 1}</span>

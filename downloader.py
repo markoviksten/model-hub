@@ -1,6 +1,7 @@
 """Hugging Face download feature (off when huggingface_hub is missing or MODEL_HUB_OFFLINE=1)."""
 
 import asyncio
+import concurrent.futures
 import logging
 import os
 import re
@@ -119,6 +120,7 @@ class SearchHit(BaseModel):
     task: Optional[str] = None
     created: Optional[str] = None
     modified: Optional[str] = None
+    size_bytes: Optional[int] = None
 
 
 class SearchPage(BaseModel):
@@ -128,6 +130,15 @@ class SearchPage(BaseModel):
     page: int
     page_size: int
     has_next: bool
+
+
+def _repo_size(repo_id: str) -> Optional[int]:
+    """Return the total size of all files in a repo (what a download fetches), or None on failure."""
+    try:
+        info = HfApi().model_info(repo_id, files_metadata=True)
+    except Exception:  # noqa: BLE001 - size is optional
+        return None
+    return sum((s.size or 0) for s in (info.siblings or []))
 
 
 def _date(value) -> Optional[str]:
@@ -156,11 +167,13 @@ async def search_models(
         log.exception("Hugging Face search failed")
         raise HTTPException(502, "Haku epäonnistui. Katso palvelimen loki.") from None
     start = page * SEARCH_PAGE_SIZE
+    page_models = [m for m in models[start:start + SEARCH_PAGE_SIZE] if REPO_ID_RE.match(m.id)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
+        sizes = await asyncio.to_thread(lambda: list(pool.map(_repo_size, [m.id for m in page_models])))
     items = [
         SearchHit(repo_id=m.id, downloads=m.downloads or 0, likes=m.likes or 0, task=m.pipeline_tag,
-                  created=_date(m.created_at), modified=_date(m.last_modified))
-        for m in models[start:start + SEARCH_PAGE_SIZE]
-        if REPO_ID_RE.match(m.id)
+                  created=_date(m.created_at), modified=_date(m.last_modified), size_bytes=size)
+        for m, size in zip(page_models, sizes)
     ]
     has_next = len(models) > start + SEARCH_PAGE_SIZE and page + 1 < SEARCH_MAX_PAGES
     return SearchPage(items=items, page=page, page_size=SEARCH_PAGE_SIZE, has_next=has_next)

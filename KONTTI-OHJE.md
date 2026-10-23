@@ -35,7 +35,7 @@ Avaa http://127.0.0.1:8767.
 
 ### 1.2 Lataa mallit
 
-Välilehti **1. Hae malli**: hae malli Hugging Facesta hakusanalla (tulokset sivutettu, päivämäärät näkyvät) tai kirjoita repo ID. Seuraa levytilaa sivun alareunasta (*Levytila ja tallennetut mallit*). Tarpeettomat mallit voi poistaa **Poista**-napilla.
+Välilehti **1. Hae malli**: hae malli Hugging Facesta hakusanalla (tulokset sivutettu, koko GB ja päivämäärät näkyvät) tai kirjoita repo ID. Seuraa levytilaa sivun alareunasta (*Levytila ja tallennetut mallit*). Tarpeettomat mallit voi poistaa **Poista**-napilla.
 
 - Gated-mallit: anna HF-token (se ei tallennu).
 
