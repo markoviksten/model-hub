@@ -166,55 +166,25 @@
   <details class="exportbox" id="exportBox">
     <summary>Vie air-gappediin: export, siirto ja käyttöönotto</summary>
     <div class="exportinner">
-    <svg class="flow" viewBox="0 0 970 230" role="img" aria-label="Vaiheet: 1 vie Model Hub, 2 kopioi tikulle, 3 kopioi air-gapped-koneelle ja lataa, 4 käynnistä Model Hub, 5 vie malli OpenShift AI:hin">
-      <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#525252"/></marker></defs>
-      <rect x="8" y="8" width="184" height="214" fill="#edf5ff" stroke="#a6c8ff"/>
-      <text x="20" y="28" class="fz">Internet-kone</text>
-      <rect x="388" y="8" width="574" height="214" fill="#fff1f1" stroke="#ffb3b8"/>
-      <text x="400" y="28" class="fz">Air-gapped-ympäristö</text>
-      <g class="fl" stroke="#525252" stroke-width="2" marker-end="url(#arr)"><line x1="175" y1="120" x2="213" y2="120"/><line x1="365" y1="120" x2="403" y2="120"/><line x1="555" y1="120" x2="593" y2="120"/><line x1="745" y1="120" x2="783" y2="120"/></g>
-      <!-- 1 export -->
-      <g transform="translate(25,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/>
-        <circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">1</text>
-        <g transform="translate(55,40)" fill="none" stroke="#161616" stroke-width="2"><path d="M20 0L40 10V32L20 42L0 32V10Z"/><path d="M0 10L20 20L40 10M20 20V42"/></g>
-        <text x="75" y="115" class="ft" text-anchor="middle">Vie Model Hub</text><text x="75" y="133" class="fs" text-anchor="middle">kontti + mallit</text><text x="75" y="149" class="fs" text-anchor="middle">→ .tar.gz</text></g>
-      <!-- 2 usb -->
-      <g transform="translate(215,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/>
-        <circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">2</text>
-        <g transform="translate(40,48)" fill="none" stroke="#161616" stroke-width="2"><rect x="0" y="9" width="48" height="22" rx="2"/><rect x="48" y="14" width="14" height="12" fill="#161616"/><rect x="8" y="15" width="10" height="10" fill="#161616"/></g>
-        <text x="75" y="115" class="ft" text-anchor="middle">Kopioi tikulle</text><text x="75" y="133" class="fs" text-anchor="middle">arkisto, .sha256,</text><text x="75" y="149" class="fs" text-anchor="middle">start.sh</text></g>
-      <!-- 3 copy to air-gapped machine -->
-      <g transform="translate(405,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/>
-        <circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">3</text>
-        <g transform="translate(47,40)" fill="none" stroke="#161616" stroke-width="2"><rect x="0" y="0" width="56" height="36" rx="2"/><path d="M20 46H36M28 36V46"/><path d="M28 8V26M20 19L28 27L36 19"/></g>
-        <text x="75" y="115" class="ft" text-anchor="middle">Kopioi koneelle</text><text x="75" y="133" class="fs" text-anchor="middle">tarkista summa,</text><text x="75" y="149" class="fs" text-anchor="middle">docker load</text></g>
-      <!-- 4 start -->
-      <g transform="translate(595,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/>
-        <circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">4</text>
-        <g transform="translate(52,38)" fill="none" stroke="#161616" stroke-width="2"><circle cx="23" cy="23" r="22"/><path d="M17 13L35 23L17 33Z" fill="#161616"/></g>
-        <text x="75" y="115" class="ft" text-anchor="middle">Käynnistä</text><text x="75" y="133" class="fs" text-anchor="middle">Model Hub</text><text x="75" y="149" class="fs" text-anchor="middle">127.0.0.1:8767</text></g>
-      <!-- 5 pvc -->
-      <g transform="translate(785,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/>
-        <circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">5</text>
-        <g transform="translate(52,38)" fill="none" stroke="#161616" stroke-width="2"><ellipse cx="23" cy="8" rx="20" ry="7"/><path d="M3 8V36C3 44 43 44 43 36V8"/><path d="M3 22C3 30 43 30 43 22"/></g>
-        <text x="75" y="115" class="ft" text-anchor="middle">Vie OpenShift AI:hin</text><text x="75" y="133" class="fs" text-anchor="middle">kirjaudu, valitse malli,</text><text x="75" y="149" class="fs" text-anchor="middle">kopioi PVC:lle</text></g>
-    </svg>
+    <svg class="flow" viewBox="0 0 1230 230" role="img" aria-label="Vaiheet: 1 hae mallit Model Hubiin, 2 vie Model Hub, 3 kopioi tikulle, 4 kopioi air-gapped-koneelle ja lataa, 5 käynnistä Model Hub, 6 vie malli OpenShift AI:hin, 7 deploy model OpenShift AI:ssa"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#525252"/></marker></defs><rect x="4" y="8" width="342" height="214" fill="#edf5ff" stroke="#a6c8ff"/><text x="16" y="28" class="fz">Internet-kone</text><rect x="532" y="8" width="694" height="214" fill="#fff1f1" stroke="#ffb3b8"/><text x="544" y="28" class="fz">Air-gapped-ympäristö</text><g stroke="#525252" stroke-width="2" marker-end="url(#arr)"><line x1="164" y1="120" x2="186" y2="120"/><line x1="340" y1="120" x2="362" y2="120"/><line x1="516" y1="120" x2="538" y2="120"/><line x1="692" y1="120" x2="714" y2="120"/><line x1="868" y1="120" x2="890" y2="120"/><line x1="1044" y1="120" x2="1066" y2="120"/></g><g transform="translate(12,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">1</text><g transform="translate(52,40)" fill="none" stroke="#161616" stroke-width="2"><circle cx="19" cy="19" r="15"/><path d="M30 30L44 44" stroke-width="3"/></g><text x="75" y="115" class="ft" text-anchor="middle">Hae mallit</text><text x="75" y="133" class="fs" text-anchor="middle">Model Hubiin</text><text x="75" y="149" class="fs" text-anchor="middle">Hugging Facesta</text></g><g transform="translate(188,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">2</text><g transform="translate(55,40)" fill="none" stroke="#161616" stroke-width="2"><path d="M20 0L40 10V32L20 42L0 32V10Z"/><path d="M0 10L20 20L40 10M20 20V42"/></g><text x="75" y="115" class="ft" text-anchor="middle">Vie Model Hub</text><text x="75" y="133" class="fs" text-anchor="middle">kontti + mallit</text><text x="75" y="149" class="fs" text-anchor="middle">→ .tar.gz</text></g><g transform="translate(364,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">3</text><g transform="translate(40,48)" fill="none" stroke="#161616" stroke-width="2"><rect x="0" y="9" width="48" height="22" rx="2"/><rect x="48" y="14" width="14" height="12" fill="#161616"/><rect x="8" y="15" width="10" height="10" fill="#161616"/></g><text x="75" y="115" class="ft" text-anchor="middle">Kopioi tikulle</text><text x="75" y="133" class="fs" text-anchor="middle">arkisto, .sha256,</text><text x="75" y="149" class="fs" text-anchor="middle">start.sh</text></g><g transform="translate(540,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">4</text><g transform="translate(47,40)" fill="none" stroke="#161616" stroke-width="2"><rect x="0" y="0" width="56" height="36" rx="2"/><path d="M20 46H36M28 36V46"/><path d="M28 8V26M20 19L28 27L36 19"/></g><text x="75" y="115" class="ft" text-anchor="middle">Kopioi koneelle</text><text x="75" y="133" class="fs" text-anchor="middle">tarkista summa,</text><text x="75" y="149" class="fs" text-anchor="middle">docker load</text></g><g transform="translate(716,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">5</text><g transform="translate(52,38)" fill="none" stroke="#161616" stroke-width="2"><circle cx="23" cy="23" r="22"/><path d="M17 13L35 23L17 33Z" fill="#161616"/></g><text x="75" y="115" class="ft" text-anchor="middle">Käynnistä</text><text x="75" y="133" class="fs" text-anchor="middle">Model Hub</text><text x="75" y="149" class="fs" text-anchor="middle">127.0.0.1:8767</text></g><g transform="translate(892,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">6</text><g transform="translate(52,38)" fill="none" stroke="#161616" stroke-width="2"><ellipse cx="23" cy="8" rx="20" ry="7"/><path d="M3 8V36C3 44 43 44 43 36V8"/><path d="M3 22C3 30 43 30 43 22"/></g><text x="75" y="115" class="ft" text-anchor="middle">Vie OpenShift AI:hin</text><text x="75" y="133" class="fs" text-anchor="middle">kirjaudu, valitse malli,</text><text x="75" y="149" class="fs" text-anchor="middle">kopioi PVC:lle</text></g><g transform="translate(1068,45)"><rect width="150" height="165" fill="#fff" stroke="#8d8d8d"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">7</text><g transform="translate(50,38)" fill="none" stroke="#161616" stroke-width="2"><path d="M4 2H46V34H22L10 46V34H4Z"/><path d="M15 18L22 25L35 11" stroke-width="3"/></g><text x="75" y="115" class="ft" text-anchor="middle">Deploy Model</text><text x="75" y="133" class="fs" text-anchor="middle">OpenShift AI:ssa</text><text x="75" y="149" class="fs" text-anchor="middle">(vLLM-runtime)</text></g></svg>
     <p class="muted">Vaiheiden ohjeet ja kopioitavat komennot ovat alla samoilla numeroilla.</p>
 <p id="exportSummary" class="muted"></p>
-    <h3 class="boxh">1. Vie Model Hub: aja komento kontin ulkopuolella</h3>
+    <h3 class="boxh">1. Hae mallit Model Hubiin</h3>
+    <p>Välilehti <strong>1. Hae malli</strong>: hae malli Hugging Facesta ja lataa se kontin <code>/models</code>-kansioon. Toista kaikille malleille, jotka tarvitset air-gapped-päässä.</p>
+    <h3 class="boxh">2. Vie Model Hub: aja komento kontin ulkopuolella</h3>
     <p>Kontti ei voi paketoida itseään, joten komento ajetaan <strong>isäntäkoneen terminaalissa</strong> kansiossa <code>model_hub</code>, ei tässä sovelluksessa. Lataukset ja kopioinnit kannattaa antaa valmistua ensin.</p>
     <p><strong>Bash</strong> (Linux, macOS, Git Bash, WSL):</p>
     <div class="cmdbox"><pre>./export.sh</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <p><strong>Windows PowerShell:</strong></p>
     <div class="cmdbox"><pre>powershell.exe -ExecutionPolicy Bypass -File ./export_with_models.ps1</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <p>Nopeampi (ei pakkausta, malliarkisto ei pakkaudu juuri): lisää loppuun <code>--no-compress</code> (PowerShell: <code>-NoCompress</code>).</p>
-    <h3 class="boxh">1b. Jos skriptejä ei ole saatavilla</h3>
+    <h3 class="boxh">2b. Jos skriptejä ei ole saatavilla</h3>
     <p>Sama käsin (kontin nimi <code>model-hub</code>):</p>
     <div class="cmdbox"><pre>docker commit --change "ENV MODEL_HUB_OFFLINE=1" model-hub model-hub:airgap
 mkdir -p dist
 docker save model-hub:airgap | gzip > dist/model-hub-with-models.tar.gz
 cd dist && sha256sum model-hub-with-models.tar.gz > model-hub-with-models.tar.gz.sha256</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
-    <h3 class="boxh">2. Kopioi tikulle</h3>
+    <h3 class="boxh">3. Kopioi tikulle</h3>
     <ul class="dlglist">
       <li><code>dist/model-hub-with-models.tar.gz</code> ja <code>dist/model-hub-with-models.tar.gz.sha256</code> (pakolliset)</li>
       <li><code>start.sh</code> kansiosta <code>model_hub</code> (suositus)</li>
@@ -224,27 +194,28 @@ cd dist && sha256sum model-hub-with-models.tar.gz > model-hub-with-models.tar.gz
 
     <h3 class="boxh">Vaihe 2: air-gapped-kone</h3>
     <p>Koneella tarvitaan Docker tai Podman sekä verkkoyhteys OpenShift-klusterin API:in (<code>oc</code> on kontin sisällä).</p>
-    <h3 class="boxh">3. Kopioi tikulta, tarkista ja lataa</h3>
+    <h3 class="boxh">4. Kopioi tikulta, tarkista ja lataa</h3>
     <p>Kopioi tikun tiedostot omaan kansioon (esim. <code>~/model-hub-siirto</code>; vapaata tilaa arkiston koko kertaa kaksi). Tarkista summa ja lataa image:</p>
     <div class="cmdbox"><pre>cd ~/model-hub-siirto
 sha256sum -c model-hub-with-models.tar.gz.sha256   # pitää tulostaa: OK
 docker load -i model-hub-with-models.tar.gz        # podman load -i ...
 docker images | grep model-hub                      # näyttää model-hub:airgap</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <p>Windows PowerShell: <code>(Get-FileHash model-hub-with-models.tar.gz -Algorithm SHA256).Hash.ToLower()</code>, vertaa <code>.sha256</code>-tiedostoon. Latauksen jälkeen <code>.tar.gz</code> voi poistaa.</p>
-    <h3 class="boxh">4. Käynnistä Model Hub</h3>
+    <h3 class="boxh">5. Käynnistä Model Hub</h3>
     <div class="cmdbox"><pre>MODEL_HUB_IMAGE=model-hub:airgap MODEL_HUB_LOADER_IMAGE=&lt;osoite&gt; bash ./start.sh</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <p>Ilman skriptiä:</p>
     <div class="cmdbox"><pre>docker run -d --name model-hub --restart unless-stopped -p 127.0.0.1:8767:8767 \
   -e MODEL_HUB_LOADER_IMAGE=&lt;osoite&gt; \
   model-hub:airgap</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <p><code>&lt;osoite&gt;</code> on apupodin (UBI9, jossa <code>tar</code>) image <strong>klusterin</strong> rekisterissä, esim. <code>image-registry.openshift-image-registry.svc:5000/&lt;projekti&gt;/ubi9:latest</code>. Jos imagea ei ole klusterissa, tuo se ensin: katso (i)-ohjeen kohta <em>Loader-image</em>. Avaa sitten <code>http://127.0.0.1:8767</code>.</p>
-    <h3 class="boxh">5. Vie malli OpenShift AI:hin</h3>
+    <h3 class="boxh">6. Vie malli OpenShift AI:hin</h3>
     <ol class="dlglist">
       <li>Tässä välilehdessä: liitä <em>Copy login command</em> ja paina <strong>Kirjaudu</strong>.</li>
       <li>Valitse malli, projekti, PVC:n nimi ja koko.</li>
       <li>Paina <strong>Kopioi malli PVC:lle</strong> ja seuraa etenemistä.</li>
-      <li>Tee deployment OpenShift AI:ssa sovelluksen näyttämien ohjeiden mukaan (<em>Models → Deploy model</em>, Cluster storage, vLLM-runtime).</li>
     </ol>
+    <h3 class="boxh">7. Deploy Model OpenShift AI:ssa</h3>
+    <p>Tee deployment OpenShift AI:n konsolissa sovelluksen näyttämien ohjeiden mukaan: <em>Models → Deploy model</em>, Cluster storage (PVC) ja vLLM-runtime.</p>
     </div>
   </details>
 
