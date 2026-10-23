@@ -55,7 +55,7 @@
   ul.steplist .incomplete { color: var(--cds-text-secondary); }
   ul.steplist .incomplete svg { fill: var(--cds-icon-disabled); }
   ul.steplist .error svg { fill: var(--cds-support-error); }
-  #dl, #login, #go { margin-top: .5rem; }
+  #dl, #login, #go, #clearDeploy { margin-top: .5rem; }
   .jobbox { margin-top: 1rem; }
   .meta { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: .5rem; font-size: .875rem; }
   .meta b { font-weight: 600; }
@@ -154,6 +154,7 @@
     <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="root">
       <label class="cds--checkbox-label" for="root"><span class="cds--checkbox-label-text">Aja apupodi rootina (vain jos kirjoitus PVC:lle epäonnistuu "Permission denied"; vaatii anyuid-oikeuden)</span></label></div>
     <button class="cds--btn cds--btn--primary" id="go">Kopioi malli PVC:lle</button>
+    <button class="cds--btn cds--btn--ghost" id="clearDeploy">Tyhjennä</button>
   </div>
 
   <div id="progress" class="hidden">
@@ -439,6 +440,20 @@ $("go").onclick = async () => {
     poll("dp", "/api/deploys/" + j.id, renderDeploy, s => { $("go").disabled = false; if (s.state === "done") showNext(s.result); });
   } catch (e) { alert(e.message); }
 };
+
+/** Clear the deploy form, progress and result box so a new copy can be started (not while a copy is running). */
+function clearDeploy() {
+  if ($("go").disabled) { alert("Kopiointi on käynnissä. Odota sen valmistumista."); return; }
+  clearInterval(timers.dp);
+  for (const id of ["progress", "next"]) $(id).classList.add("hidden");
+  for (const id of ["copyBar", "steps", "msg", "next"]) $(id).innerHTML = "";
+  $("log").textContent = "";
+  $("ns").value = ""; $("sc").value = ""; $("pvc").value = "model-storage";
+  $("mkns").checked = false; $("root").checked = false;
+  $("img").value = info.loader_image || "";
+  suggestSize();
+}
+$("clearDeploy").onclick = clearDeploy;
 
 function showNext(r) {
   $("next").innerHTML = `
