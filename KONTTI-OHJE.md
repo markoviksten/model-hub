@@ -35,9 +35,8 @@ Avaa http://127.0.0.1:8767.
 
 ### 1.2 Lataa mallit
 
-Välilehti **1. Hae malli**: valitse valmis malli, hae Hugging Facesta tai kirjoita repo ID. Seuraa levytilaa sivun alareunasta (*Levytila ja tallennetut mallit*). Tarpeettomat mallit voi poistaa **Poista**-napilla.
+Välilehti **1. Hae malli**: hae malli Hugging Facesta hakusanalla (tulokset sivutettu, päivämäärät näkyvät) tai kirjoita repo ID. Seuraa levytilaa sivun alareunasta (*Levytila ja tallennetut mallit*). Tarpeettomat mallit voi poistaa **Poista**-napilla.
 
-- Älä valitse "Luo myös .tar": se kaksinkertaistaa tilan eikä sitä tarvita, kun siirto tehdään kontti-imagena.
 - Gated-mallit: anna HF-token (se ei tallennu).
 
 ### 1.3 Vie kontti malleineen

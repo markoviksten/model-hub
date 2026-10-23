@@ -1,11 +1,9 @@
 """Hugging Face download feature (off when huggingface_hub is missing or MODEL_HUB_OFFLINE=1)."""
 
 import asyncio
-import hashlib
 import logging
 import os
 import re
-import tarfile
 import threading
 import time
 import uuid
@@ -39,13 +37,6 @@ MAX_JOBS_KEPT = 50
 SEARCH_PAGE_SIZE = 10
 SEARCH_MAX_PAGES = 10
 
-PRESETS = [
-    {"id": "qwen2-fp8", "label": "Qwen2 0.5B Instruct FP8", "repo_id": "RedHatAI/Qwen2-0.5B-Instruct-FP8",
-     "note": "Pieni testimalli (~1 GB)"},
-    {"id": "gemma4-fp8", "label": "Gemma 4 12B it FP8 Dynamic", "repo_id": "RedHatAI/gemma-4-12B-it-FP8-Dynamic",
-     "note": "~14,3 GB, Apache 2.0, ei gated"},
-]
-
 router = APIRouter(prefix="/api")
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
@@ -58,7 +49,6 @@ class DownloadRequest(BaseModel):
 
     repo_id: str = Field(..., max_length=200)
     token: Optional[str] = Field(default=None, max_length=200, repr=False)
-    make_tar: bool = False
 
 
 class JobStatus(BaseModel):
@@ -70,8 +60,6 @@ class JobStatus(BaseModel):
     downloaded_bytes: int
     total_bytes: int
     path: Optional[str] = None
-    tar_path: Optional[str] = None
-    sha256: Optional[str] = None
     message: Optional[str] = None
     elapsed_s: Optional[float] = None
 
@@ -97,29 +85,11 @@ def _safe_error(exc: Exception) -> str:
     return "Lataus epäonnistui. Katso palvelimen loki."
 
 
-def _make_tar(src: Path) -> tuple[Path, str]:
-    """Create `<src>.tar` next to `src` and return its path and SHA-256."""
-    tar_path = src.parent / f"{src.name}.tar"
-    with tarfile.open(tar_path, "w") as tar:
-        tar.add(src, arcname=src.name, filter=lambda ti: None if ".cache" in Path(ti.name).parts else ti)
-    digest = hashlib.sha256()
-    with open(tar_path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-            digest.update(chunk)
-    sha = digest.hexdigest()
-    Path(str(tar_path) + ".sha256").write_text(f"{sha}  {tar_path.name}\n", encoding="utf-8")
-    return tar_path, sha
-
-
 def _run_job(job: dict, req: DownloadRequest, target: Path) -> None:
-    """Worker thread: download the repo, optionally tar it, then set the final state."""
+    """Worker thread: download the repo, then set the final state."""
     try:
         snapshot_download(repo_id=req.repo_id, local_dir=str(target), token=req.token or None)
         job["path"] = str(target)
-        if req.make_tar:
-            job["message"] = "Luodaan tar-pakettia..."
-            tar_path, sha = _make_tar(target)
-            job["tar_path"], job["sha256"] = str(tar_path), sha
         job["message"] = None
         job["ended_at"] = time.time()
         job["state"] = "done"
@@ -138,12 +108,6 @@ def _to_status(job: dict) -> JobStatus:
         job["downloaded_bytes"] = max(job["downloaded_bytes"], job["total_bytes"])
     public = {k: v for k, v in job.items() if k not in ("target", "started_at", "ended_at")}
     return JobStatus(**public, elapsed_s=settings.elapsed(job["started_at"], job["ended_at"]))
-
-
-@router.get("/presets")
-async def get_presets() -> list[dict]:
-    """Return the built-in model presets."""
-    return PRESETS
 
 
 class SearchHit(BaseModel):
@@ -220,7 +184,7 @@ async def start_download(req: DownloadRequest) -> JobStatus:
     target = (settings.MODELS_DIR / req.repo_id.split("/")[1]).resolve()
     if settings.MODELS_DIR not in target.parents:
         raise HTTPException(422, "Virheellinen repo_id.")
-    need = (total * (2 if req.make_tar else 1)) - _dir_size(target)
+    need = total - _dir_size(target)
     free = settings.disk_free()
     if need > free:
         raise HTTPException(
@@ -235,7 +199,7 @@ async def start_download(req: DownloadRequest) -> JobStatus:
         _jobs[job_id] = {
             "id": job_id, "repo_id": req.repo_id, "state": "running",
             "downloaded_bytes": 0, "total_bytes": total, "path": None,
-            "tar_path": None, "sha256": None, "message": None, "target": str(target),
+            "message": None, "target": str(target),
             "started_at": time.time(), "ended_at": None,
         }
         for old in list(_jobs)[:-MAX_JOBS_KEPT]:

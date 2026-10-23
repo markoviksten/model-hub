@@ -42,7 +42,6 @@
   ul.steplist .incomplete { color: var(--cds-text-secondary); }
   ul.steplist .incomplete svg { fill: var(--cds-icon-disabled); }
   ul.steplist .error svg { fill: var(--cds-support-error); }
-  #presets { margin-bottom: 1.5rem; }
   #dl, #login, #go { margin-top: .5rem; }
   .jobbox { margin-top: 1rem; }
   .meta { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: .5rem; font-size: .875rem; }
@@ -73,7 +72,6 @@
 <section id="get">
   <div id="dlSection">
     <h2>Lataa Hugging Facesta</h2>
-    <div id="presets"></div>
     <div class="cds--form-item"><label class="cds--label" for="q">Hae mallia Hugging Facesta (esim. gemma fp8)</label>
       <div style="display:flex; gap:.5rem; width:100%">
         <input class="cds--text-input" type="search" id="q" placeholder="Hakusana" style="flex:1">
@@ -89,9 +87,6 @@
       <input class="cds--text-input" type="text" id="repo" placeholder="RedHatAI/Qwen2-0.5B-Instruct-FP8"></div>
     <div class="cds--form-item"><label class="cds--label" for="hfToken">HF-token (valinnainen, vain gated-malleille)</label>
       <input class="cds--text-input" type="password" id="hfToken" autocomplete="off"></div>
-    <div class="cds--form-item cds--checkbox-wrapper">
-      <input class="cds--checkbox" type="checkbox" id="makeTar">
-      <label class="cds--checkbox-label" for="makeTar"><span class="cds--checkbox-label-text">Luo myös .tar ja SHA-256 (siirtoa varten air-gapped-ympäristöön)</span></label></div>
     <button class="cds--btn cds--btn--primary" id="dl">Lataa</button>
     <div id="dlStatus" class="jobbox"></div>
   </div>
@@ -107,7 +102,6 @@
   <div class="cds--form-item"><label class="cds--label" for="calcGb">Levytilalaskuri: mahtuuko malli? Syötä mallin koko (GB)</label>
     <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap">
       <input class="cds--text-input" type="number" min="0" step="0.1" id="calcGb" placeholder="esim. 14.3" style="width:10rem">
-      <label style="font-size:.875rem"><input type="checkbox" id="calcTar"> myös .tar-paketti (kaksinkertainen tila)</label>
       <span id="calcOut" class="muted"></span></div></div>
   <div id="storeList"></div>
   <div id="storeMsg"></div>
@@ -241,19 +235,10 @@ async function loadInfo() {
   }
   if (!info.oc) $("loginMsg").textContent = "oc-työkalua ei löydy. Kopioi oc kansioon tools/ tai aseta OC_BIN.";
   showTab("get");
-  await loadPresets();
-  ["q", "sort", "search", "clearSearch", "repo", "hfToken", "makeTar", "dl"].forEach(id => { $(id).disabled = !info.download_enabled; });
+  ["q", "sort", "search", "clearSearch", "repo", "hfToken", "dl"].forEach(id => { $(id).disabled = !info.download_enabled; });
 }
 
 /* ---- download ---- */
-async function loadPresets() {
-  const presets = await api("/api/presets");
-  $("presets").innerHTML = presets.map(p => `
-    <div class="cds--tile item"><div class="info"><strong>${esc(p.label)}</strong>
-    <div class="muted">${esc(p.repo_id)} &middot; ${esc(p.note)}</div></div>
-    <button class="cds--btn cds--btn--primary cds--btn--sm" data-repo="${esc(p.repo_id)}" ${info.download_enabled ? "" : "disabled"}>Lataa</button></div>`).join("");
-  document.querySelectorAll("#presets button").forEach(b => b.onclick = () => startDownload(b.dataset.repo));
-}
 
 let searchState = { q: "", sort: "downloads", page: 0 };
 
@@ -291,7 +276,7 @@ function clearSearch() {
 }
 
 async function startDownload(repo) {
-  const body = { repo_id: repo, make_tar: $("makeTar").checked };
+  const body = { repo_id: repo };
   if ($("hfToken").value) body.token = $("hfToken").value;
   try {
     const j = await post("/api/downloads", body);
@@ -304,16 +289,13 @@ function renderDownload(s) {
   const speed = s.elapsed_s > 1 ? s.downloaded_bytes / s.elapsed_s : 0;
   const meta = `<div class="meta"><span>Kulunut: <b>${fmtT(s.elapsed_s)}</b></span>`;
   if (s.state === "running") {
-    const tarPhase = s.total_bytes && s.downloaded_bytes >= s.total_bytes;
     const pct = s.total_bytes ? Math.round(100 * s.downloaded_bytes / s.total_bytes) : 0;
     const left = eta(s.downloaded_bytes, s.total_bytes, s.elapsed_s);
-    $("dlStatus").innerHTML = bar(title, pct, `${gb(s.downloaded_bytes)} / ${gb(s.total_bytes)} (${pct}%)${s.message ? " &middot; " + esc(s.message) : ""}`,
-        tarPhase && s.message ? "indeterminate" : "")
+    $("dlStatus").innerHTML = bar(title, pct, `${gb(s.downloaded_bytes)} / ${gb(s.total_bytes)} (${pct}%)`)
       + meta + `<span>Nopeus: <b>${speed ? gb(speed) + "/s" : "–"}</b></span><span>Arvio jäljellä: <b>${fmtT(left)}</b></span></div>`;
   } else if (s.state === "done") {
     $("dlStatus").innerHTML = bar(title, 100, "Valmis", "finished") + meta + "</div>"
-      + `<div class="muted">Kansio: <code>${esc(s.path)}</code></div>`
-      + (s.tar_path ? `<div class="muted">Tar: <code>${esc(s.tar_path)}</code><br>SHA-256: <code>${esc(s.sha256)}</code></div>` : "");
+      + `<div class="muted">Kansio: <code>${esc(s.path)}</code></div>`;
   } else {
     $("dlStatus").innerHTML = bar(title, 0, esc(s.message || "Virhe"), "error") + meta + "</div>";
   }
@@ -346,7 +328,7 @@ async function loadStorage() {
 function calcSpace() {
   const gbIn = parseFloat($("calcGb").value);
   if (!gbIn || gbIn <= 0) { $("calcOut").textContent = ""; return; }
-  const need = gbIn * 1e9 * ($("calcTar").checked ? 2 : 1);
+  const need = gbIn * 1e9;
   const left = storage.free - need;
   $("calcOut").innerHTML = left >= 0
     ? `<span class="cds--tag cds--tag--green">Mahtuu</span> tarvitaan ${gb(need)}, jää vapaaksi ${gb(left)}`
@@ -364,7 +346,6 @@ async function deleteItem(kind, name) {
   loadStorage(); loadPackages(); loadModels();
 }
 $("calcGb").oninput = calcSpace;
-$("calcTar").onchange = calcSpace;
 
 /* ---- packages ---- */
 async function loadPackages() {

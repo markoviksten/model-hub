@@ -5,7 +5,7 @@
 Yksi sovellus: malli haetaan (tai tuodaan paketista) ja viedään OpenShift AI:n PVC:lle. Toimii yhdistettynä ja air-gapped-ympäristössä.
 
 ## Välilehdet
-1. **Hae malli** – lataus Hugging Facesta (valmis lista, hakukenttä tai repo ID käsin; piilossa offline-tilassa) tai tuonti `<malli>.tar` + `.sha256` -paketista (SHA-256 tarkistetaan).
+1. **Hae malli** – lataus Hugging Facesta (haku hakusanalla tai repo ID käsin; piilossa offline-tilassa) tai tuonti `<malli>.tar` + `.sha256` -paketista (SHA-256 tarkistetaan).
 2. **Vie OpenShift AI:hin** – `oc login`, projekti, PVC, loader-pod, kopiointi, tarkistus, siivous.
 
 UI on rakennettu IBM Carbon Design Systemillä (`static/carbon.css`, IBM Plex -fontit `static/fonts/`; ei ulkoisia riippuvuuksia, toimii offline). Edistymispalkeissa näkyy kulunut aika, nopeus ja arvio jäljellä olevasta ajasta; deploy-vaiheilla on omat kestonsa.
