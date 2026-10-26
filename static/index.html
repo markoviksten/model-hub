@@ -653,7 +653,8 @@ function showNext(r) {
     </ol>
     ${ovms ? "" : `<details style="margin-top:.75rem"><summary><strong>Ei GPU:ta? Julkaise CPU:lle (testikäyttö)</strong></summary>
       <ol class="next">
-        <li><em>Settings → Serving runtimes</em>: valitse <strong>vLLM CPU</strong> -runtime, jos se on listalla. Jos ei ole, lisää oma (<em>Add serving runtime</em>, kopioi GPU-runtimen YAML, vaihda image vLLM:n CPU-buildiin ja poista GPU-resurssit). Air-gapped: peilaa image ensin omaan rekisteriin.</li>
+        <li>Red Hatin valmis <strong>vLLM CPU</strong> -runtime on tehty vain ppc64le/s390x-koneille (x86-klusterilla <code>ImagePullBackOff: no image found ... amd64</code>). Lisää x86-runtime: lataa <a href="/static/vllm-cpu-x86-servingruntime.yaml" download>vllm-cpu-x86-servingruntime.yaml</a>, avaa <em>Settings → Serving runtimes → Add</em>, valitse <em>Single-model serving platform</em> ja <em>REST</em>, <em>Upload files</em> (tai <em>Start from scratch</em> ja liitä YAML) ja <em>Create</em>. YAML sisältää jo alla olevat argumentit ja ympäristömuuttujat. Air-gapped: peilaa image <code>vllm/vllm-openai-cpu:v0.32.0-x86_64</code> omaan rekisteriin ja muuta <code>image</code>-rivi.</li>
+        <li>Deploy model: valitse runtimeksi <strong>vLLM CPU (x86_64)</strong>.</li>
         <li>Hardware profile: ilman GPU:ta, esim. 4-8 CPU ja 8-16 Gi muistia.</li>
         <li>Runtime-argumentit:</li>
       </ol>
