@@ -279,7 +279,8 @@ def list_models() -> dict:
             if d.is_dir() and settings.FOLDER_RE.match(d.name) and (
                     (d / "config.json").is_file() or (d / rt.MANIFEST).is_file()):
                 models.append({"name": d.name, "size_bytes": _local_size(d),
-                               "runtime": rt.read_manifest(d)["runtime"]})
+                               "runtime": rt.read_manifest(d)["runtime"],
+                               "framework": rt.framework(rt.read_manifest(d))})
     return {"dir": str(settings.MODELS_DIR), "models": models}
 
 
@@ -561,6 +562,7 @@ def _run_deploy(job: dict, req: DeployRequest) -> None:
             "namespace": ns, "pvc": req.pvc_name, "model_path": req.model_dir, "runtime": runtime,
             "version": version or None, "pvc_uri": f"pvc://{req.pvc_name}/{req.model_dir}",
             "embedding": bool(rt.read_manifest(local_dir).get("embedding")),
+            "framework": rt.framework(rt.read_manifest(local_dir)),
             "size_bytes": local, "serving_runtime": rt.SERVING_NAMES[runtime],
         }
         failed = False

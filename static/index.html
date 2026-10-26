@@ -557,7 +557,9 @@ function suggestSize() {
 /** Show the Model path / URI that this model gets on the PVC (the value to type in OpenShift AI's deploy form). */
 function updatePathHint() {
   const m = $("model").value, pvc = $("pvc").value.trim() || "model-storage";
-  $("pathHint").innerHTML = m ? `OpenShift AI:n <strong>Model path</strong> tulee olemaan <code>${esc(m)}</code> (URI <code>pvc://${esc(pvc)}/${esc(m)}</code>).` : "";
+  const info = models.find(x => x.name === m);
+  const fw = info && info.framework ? ` <strong>Model framework</strong>: <code>${esc(info.framework)}</code>.` : "";
+  $("pathHint").innerHTML = m ? `OpenShift AI:n <strong>Model path</strong> tulee olemaan <code>${esc(m)}</code> (URI <code>pvc://${esc(pvc)}/${esc(m)}</code>).${fw}` : "";
 }
 $("model").onchange = () => { suggestSize(); updatePathHint(); };
 $("pvc").oninput = updatePathHint;
@@ -629,6 +631,8 @@ function showNext(r) {
     <div class="cmdbox"><pre>${esc(r.model_path)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <p style="margin:.5rem 0 .25rem">Jos lomake pyytää koko URI:n:</p>
     <div class="cmdbox"><pre>${esc(r.pvc_uri)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    ${r.framework ? `<p style="margin:.5rem 0 .25rem">Lomakkeen <strong>Model framework</strong> -kenttään:</p>
+    <div class="cmdbox"><pre>${esc(r.framework)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>` : ""}
     ${ovms ? "<p class=\"muted\">Älä lisää versiokansiota (<code>/" + esc(r.version || "1") + "</code>) polun perään: OVMS löytää sen itse.</p>" : ""}
     <ul class="next">
       <li>Runtime: <strong>${esc(r.runtime)}</strong>${r.version ? ` (versio <code>${esc(r.version)}</code>)` : ""}</li>
@@ -637,13 +641,13 @@ function showNext(r) {
     </ul>
     <ol class="next">
       <li><strong>Models → Deploy model</strong> projektissa <code>${esc(r.namespace)}</code></li>
-      <li>Model location: <strong>Cluster storage</strong> → <code>${esc(r.pvc)}</code>, Model path: <code>${esc(r.model_path)}</code></li>
+      <li>Model location: <strong>Cluster storage</strong> → <code>${esc(r.pvc)}</code>, Model path: <code>${esc(r.model_path)}</code>${r.framework ? `, Model framework: <code>${esc(r.framework)}</code>` : ""}</li>
       <li>Serving runtime: <strong>${esc(r.serving_runtime)}</strong></li>
       ${ovms ? "<li>Hardware profile: CPU riittää. OVMS lukee uusimman versiokansion (<code>1/</code>, <code>2/</code> ...)</li>"
              : (r.embedding ? "<li><strong>Embedding-malli:</strong> lisää vLLM-argumentti <code>--task=embed</code> (uudemmissa versioissa <code>--runner=pooling</code>); endpoint on <code>/v1/embeddings</code></li>" : "") + "<li>Hardware profile: 1 GPU. Runtime-argumentti esim. <code>--max-model-len=4096</code>, ympäristömuuttuja <code>HF_HUB_OFFLINE=1</code></li>"}
       <li>Valitse <strong>Require token authentication</strong> ja tarvittaessa external route</li>
       ${ovms
-        ? `<li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v2/models/${esc(r.model_path)}</code> (malli-nimi on deploymentin nimi) tai käytä testinotebookia (vaihe 8)</li>`
+        ? `<li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v2/models/${esc(r.model_path)}</code> (malli-nimi on deploymentin nimi Kubernetes-muodossa, esim. <code>bge-small-en-v1.5</code> → <code>bge-small-en-v15</code>) tai käytä testinotebookia (vaihe 8)</li>`
         : `<li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v1/models -H "Authorization: Bearer &lt;token&gt;"</code></li>
       <li>Kirjaa muistiin malli-id (<code>/v1/models</code>) ja base URL (<code>https://&lt;endpoint&gt;/v1</code>) gateway-liitosta varten</li>`}
     </ol>`;

@@ -51,6 +51,9 @@ Lataus rakentaa mallikansion valmiiksi sen runtimen odottamaan muotoon. Polku Op
 ## Model path ja jaettu PVC
 
 - Model path OpenShift AI:n deploy-lomakkeessa on mallikansion nimi (repon nimi ilman organisaatiota), esim. `navy-ships-ONNX`; URI on `pvc://<pvc>/<malli>`. Sovellus näyttää arvon jo ennen kopiointia (mallivalinnan alla) ja kopioitavina kenttinä kopioinnin jälkeen. OVMS:llä ei anneta versiokansiota.
+- **Model framework** (vain OVMS): `onnx` ONNX-malleille, `openvino_ir` kun kansiossa on `.xml`+`.bin`. Sovellus näyttää arvon mallivalinnan alla ja kopioinnin jälkeen; vLLM:lle sitä ei tarvita.
+- OVMS-mallin nimi endpointissa on deploymentin nimi Kubernetes-muodossa (esim. `bge-small-en-v1.5` → `bge-small-en-v15`).
+- ONNX-embedding OVMS:llä: testinotebookissa `EMBED_HF_REPO="BAAI/bge-small-en-v1.5"`, `POOLING="cls"` ja `transformers` workbenchiin (tokenizer tarvitsee ladata kerran).
 - Useita malleja samalle PVC:lle: jos PVC:tä käyttää jo pod (esim. mallipalvelin), deploymenttia ei tarvitse pysäyttää. ReadWriteOnce-PVC:n voi liittää useampaan podiin samalla nodella, joten apupodi ajetaan automaattisesti samalla nodella (`nodeName`). ReadWriteMany: ei rajoitusta. ReadWriteOncePod: jakaminen ei onnistu, käytä toista PVC:tä.
 
 ## Mallin testaus OpenShift AI:ssa

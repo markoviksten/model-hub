@@ -152,3 +152,10 @@ def read_manifest(folder: Path) -> dict:
     except (OSError, ValueError):
         pass
     return {"runtime": "vllm"}
+
+
+def framework(manifest: dict) -> str | None:
+    """OpenShift AI 'Model framework' value for OVMS ('onnx' / 'openvino_ir'); None for vLLM."""
+    if manifest.get("runtime") != "ovms":
+        return None
+    return "onnx" if manifest.get("format") == "onnx" else "openvino_ir"
