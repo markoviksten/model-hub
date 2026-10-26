@@ -48,6 +48,10 @@ Lataus rakentaa mallikansion valmiiksi sen runtimen odottamaan muotoon. Polku Op
 - **Token**: kenttä UI:ssa, tai ympäristömuuttuja `HF_TOKEN` kontille.
 - Huom: 10 GiB PVC ei riitä 8B-LLM:lle (fp16 ~16 GB). OVMS voi palvella OpenVINO-muunnettuja LLM:iä, mutta tarvitsee oman graph-konfiguraation, joten LLM:t ohjataan vLLM:ään.
 
+## Mallin testaus OpenShift AI:ssa
+
+Välilehdellä 2 on lataus `osai_model_test.ipynb` (tiedosto: `static/osai_model_test.ipynb`, myös `/static/osai_model_test.ipynb`). Lataa se, tuo se OpenShift AI -projektin workbenchiin (JupyterLab → Upload), aseta osiossa 1 `ENDPOINT` ja `MODEL_NAME`, aja osio 2 (diagnostiikka) ja sen jälkeen mallityypin osio: 3 ONNX/OpenVINO (OVMS), 4 LLM (vLLM), 5 embedding. Täydellinen ohje on sovelluksen välilehdellä 2.
+
 ## Yhdistetty kone
 ```powershell
 pip install -r requirements-online.txt

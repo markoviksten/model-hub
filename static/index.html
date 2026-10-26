@@ -64,6 +64,9 @@
   .cds--progress-step svg { flex: none; }
   .cds--progress-step--error .cds--progress-label, .cds--progress-step--error svg { color: var(--cds-support-error); fill: var(--cds-support-error); }
   .cds--progress-bar { margin: .5rem 0; }
+  ol.next, ul.next { padding-left: 1.5rem; margin: .5rem 0; }
+  ol.next { list-style: decimal; }
+  ul.next { list-style: disc; }
   ol.next li { margin: .4rem 0; }
   .cds--header__name { margin-right: auto; }
   .cds--header { gap: .75rem; }
@@ -294,6 +297,20 @@ docker images | grep model-hub                      # näyttää model-hub:airga
     <pre id="log"></pre>
   </div>
   <div id="next" class="cds--tile hidden"></div>
+<div id="testNb" class="cds--tile" style="margin-top:1rem">
+  <strong>Testaa julkaistua mallia: notebook OpenShift AI:n workbenchiin</strong>
+  <p class="muted">Kun malli on tilassa <b>Started</b>, voit testata sen notebookilla (OVMS/ONNX, vLLM-chat, embeddings).</p>
+  <p><a class="cds--btn cds--btn--tertiary cds--btn--sm" href="/static/osai_model_test.ipynb" download="osai_model_test.ipynb">Lataa osai_model_test.ipynb</a></p>
+  <ol class="next">
+    <li>Tallenna tiedosto koneellesi (nappi yllä).</li>
+    <li>OpenShift AI → <strong>Projects</strong> → oma projekti → <strong>Workbenches</strong> → <strong>Create workbench</strong> (esim. image Minimal Python / Jupyter). Odota tilaa <strong>Running</strong> ja avaa <strong>Open</strong>.</li>
+    <li>JupyterLabissa: vasemman reunan tiedostoselaimessa <strong>Upload</strong> (nuoli ylös) → valitse <code>osai_model_test.ipynb</code> → avaa tuplaklikkaamalla.</li>
+    <li>Kopioi mallin osoite: <strong>Models</strong> (Deployments) → malli → <strong>Inference endpoint</strong> (external, ilman polkua lopussa). Jos kyse on klusterin sisäisestä osoitteesta, workbench voi käyttää sitäkin.</li>
+    <li>Notebookin osio <strong>1. Asetukset</strong>: aseta <code>ENDPOINT</code> ja <code>MODEL_NAME</code> (deploymentin nimi). Token kysytään ajettaessa (OpenShift AI → deployment → <em>Token authentication</em>); jos autentikointi ei ole päällä, paina Enter.</li>
+    <li>Aja ensin <strong>osio 2 (diagnostiikka)</strong>: se tunnistaa runtimen (<code>ovms</code>/<code>vllm</code>). Sen jälkeen aja mallityyppiin sopiva osio: <strong>3</strong> ONNX/OpenVINO, <strong>4</strong> LLM (vLLM), <strong>5</strong> embedding.</li>
+    <li>Ilman internet-yhteyttä (air-gapped): osio 3c hakee tietoja Hugging Facesta (<code>HF_REPO = None</code> ohittaa sen) ja ensimmäinen solu tekee <code>%pip install</code>, joten tarvittavat paketit (<code>requests numpy pillow</code>) pitää olla workbenchin imagessa tai omassa PyPI-peilissä. Embedding <code>ovms_v2</code> tarvitsee lisäksi <code>transformers</code> ja tokenizerin (<code>EMBED_HF_REPO</code>).</li>
+  </ol>
+</div>
 </section>
 </main>
 
