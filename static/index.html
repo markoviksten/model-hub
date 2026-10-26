@@ -235,8 +235,9 @@ docker images | grep model-hub                      # näyttää model-hub:airga
     <p>Avaa sitten selaimessa <code>http://127.0.0.1:8767</code>. Mitään osoitetta ei tarvitse antaa käynnistyksessä: apupodin image ja projekti annetaan vasta vaiheessa 6.</p>
     <h3 class="boxh">6. Vie malli OpenShift AI:hin</h3>
     <ol class="dlglist">
+      <li><strong>Perusta ensin OpenShift AI -projekti</strong>, johon haluat julkaista mallit: OpenShift AI → <em>Projects</em> → <em>Create project</em> (esim. <code>llm-demo</code>). Voit myös antaa uuden projektin nimen alla ja rastittaa <em>Luo projekti, jos sitä ei ole</em>; sovellus luo silloin projektin OpenShift AI:n tunnistamana. Käytä samaa projektia vaiheissa 6&ndash;8.</li>
       <li>Tässä välilehdessä: liitä <em>Copy login command</em> ja paina <strong>Kirjaudu</strong>.</li>
-      <li>Valitse malli, <strong>projekti</strong>, PVC:n nimi ja koko.</li>
+      <li>Valitse malli, <strong>projekti</strong> (se, jonka perustit), PVC:n nimi ja koko. PVC:n nimeksi ehdotetaan <code>&lt;malli&gt;-pvc</code> (oma PVC per malli).</li>
       <li>Täytä <strong>Apupodin image</strong> -kenttä (ks. alla).</li>
       <li>Paina <strong>Kopioi malli PVC:lle</strong> ja seuraa etenemistä.</li>
     </ol>
@@ -250,16 +251,17 @@ docker images | grep model-hub                      # näyttää model-hub:airga
     <h3 class="boxh">7. Deploy Model OpenShift AI:ssa</h3>
     <p>Tee deployment OpenShift AI:n konsolissa sovelluksen näyttämien ohjeiden mukaan: <em>Models → Deploy model</em>, Cluster storage (PVC) ja runtime (vLLM tai OpenVINO Model Server).</p>
     <h3 class="boxh">8. Testaa malli: notebook OpenShift AI:n workbenchissa</h3>
-    <p>Kun malli on tilassa <strong>Started</strong>, voit testata sen notebookilla (OVMS/ONNX, vLLM-chat, embeddings).</p>
+    <p>Kun malli on tilassa <strong>Started</strong>, voit testata sen notebookilla (OVMS/ONNX, vLLM-chat, embeddings). <strong>Tee testi samassa OpenShift AI -projektissa, jonka perustit kohdassa 6</strong> (workbench ja deployment samassa projektissa).</p>
     <p><a class="cds--btn cds--btn--tertiary cds--btn--sm" href="/static/osai_model_test.ipynb" download="osai_model_test.ipynb">Lataa osai_model_test.ipynb</a></p>
     <ol class="dlglist">
       <li>Tallenna tiedosto koneellesi (nappi yllä).</li>
       <li>OpenShift AI → <strong>Projects</strong> → oma projekti → <strong>Workbenches</strong> → <strong>Create workbench</strong> (esim. image Minimal Python / Jupyter). Odota tilaa <strong>Running</strong> ja avaa <strong>Open</strong>.</li>
       <li>JupyterLabissa: vasemman reunan tiedostoselaimessa <strong>Upload</strong> (nuoli ylös) → valitse <code>osai_model_test.ipynb</code> → avaa tuplaklikkaamalla.</li>
       <li>Kopioi mallin osoite: <strong>Models</strong> (Deployments) → malli → <strong>Inference endpoint</strong> (external, ilman polkua lopussa). Jos kyse on klusterin sisäisestä osoitteesta, workbench voi käyttää sitäkin.</li>
-      <li>Notebookin osio <strong>1. Asetukset</strong>: aseta <code>ENDPOINT</code> ja <code>MODEL_NAME</code> (deploymentin nimi). Token kysytään ajettaessa (OpenShift AI → deployment → <em>Token authentication</em>); jos autentikointi ei ole päällä, paina Enter.</li>
+      <li>Notebookin osio <strong>1. Asetukset</strong>: aseta <code>ENDPOINT</code> ja <code>MODEL_NAME</code>. <code>MODEL_NAME</code> on deploymentin nimi <strong>pienillä kirjaimilla ja ilman pistettä</strong> (esim. <code>Qwen2-0.5B-Instruct</code> &rarr; <code>qwen2-05b-instruct</code>, <code>bge-small-en-v1.5</code> &rarr; <code>bge-small-en-v15</code>); Deploy-vaiheen tulosruutu ehdottaa oikean nimen. Token kysytään ajettaessa (OpenShift AI → deployment → <em>Token authentication</em>); jos autentikointi ei ole päällä, paina Enter.</li>
       <li>Aja ensin <strong>osio 2 (diagnostiikka)</strong>: se tunnistaa runtimen (<code>ovms</code>/<code>vllm</code>). Sen jälkeen aja mallityyppiin sopiva osio: <strong>3</strong> ONNX/OpenVINO, <strong>4</strong> LLM (vLLM), <strong>5</strong> embedding.</li>
     </ol>
+    <p class="muted"><strong>Nimeämisohjeet:</strong> malli-id, deploymentin nimi ja PVC:n nimi noudattavat Kubernetes-nimeämistä (pienet kirjaimet, numerot ja viivat). Tarkemmat ohjeet ja esimerkit: vaiheen 7 tulosruudun kohta <em>Model deployment name</em> sekä notebookin osio 1. Jos kutsu antaa 404 (vLLM) tai tuntemattoman mallin (OVMS), tarkista ensin nimi: notebookin osio 2 listaa palvelimen käyttämän nimen.</p>
     <p class="muted">Air-gapped: osio 3c hakee tietoja Hugging Facesta (<code>HF_REPO = None</code> ohittaa sen) ja ensimmäinen solu tekee <code>%pip install</code>, joten tarvittavat paketit (<code>requests numpy pillow</code>) pitää olla workbenchin imagessa tai omassa PyPI-peilissä. Embedding <code>ovms_v2</code> tarvitsee lisäksi <code>transformers</code> ja tokenizerin (<code>EMBED_HF_REPO</code>).</p>
     </div>
   </details>

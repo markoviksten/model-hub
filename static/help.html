@@ -67,11 +67,13 @@ bash ./start.sh</pre>
 
 <h4>2.4 Vie malli OpenShift AI:hin</h4>
 <ol>
+  <li><strong>Perusta ensin OpenShift AI -projekti</strong>, johon haluat julkaista mallit (<em>Projects → Create project</em>), tai rastita lomakkeella <em>Luo projekti, jos sitä ei ole</em>. Käytä samaa projektia deploymentissa ja testauksessa.</li>
   <li>Avaa välilehti <strong>2. Vie OpenShift AI:hin</strong>.</li>
   <li>Liitä konsolin <em>Copy login command</em> -komento ja paina <strong>Kirjaudu</strong>.</li>
   <li>Valitse malli, projekti, PVC:n nimi ja koko (koko ehdotetaan).</li>
   <li>Paina <strong>Kopioi malli PVC:lle</strong>. <strong>Tyhjennä</strong> nollaa lomakkeen ja etenemisen seuraavaa kopiointia varten.</li>
-  <li>Tee deployment OpenShift AI:ssa sovelluksen näyttämien ohjeiden mukaan: <em>Models → Deploy model</em>, Cluster storage, vLLM-runtime.</li>
+  <li>Tee deployment OpenShift AI:ssa sovelluksen näyttämien ohjeiden mukaan: <em>Models → Deploy model</em>, Cluster storage, vLLM-runtime. Käytä tulosruudun ehdottamaa nimeä (pienet kirjaimet, ei pisteitä).</li>
+  <li>Testaa malli notebookilla samassa projektissa: lataa <code>osai_model_test.ipynb</code> ja aseta <code>MODEL_NAME</code> samaan, pienillä kirjaimilla kirjoitettuun nimeen.</li>
 </ol>
 
 <h3>Arkipäivän komennot</h3>
