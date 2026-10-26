@@ -5,14 +5,14 @@
 Yksi sovellus: malli haetaan (tai tuodaan paketista) ja viedään OpenShift AI:n PVC:lle. Toimii yhdistettynä ja air-gapped-ympäristössä.
 
 ## Välilehdet
-1. **Hae malli** – lataus Hugging Facesta (haku hakusanalla tai repo ID käsin; piilossa offline-tilassa).
-2. **Vie OpenShift AI:hin** – `oc login`, projekti, PVC, loader-pod, kopiointi, tarkistus, siivous.
+1. **Hae malli (internet)** – lataus Hugging Facesta (haku hakusanalla tai repo ID käsin; piilossa offline-tilassa).
+2. **Vie malli (on-prem)** – `oc login`, projekti, PVC, loader-pod, kopiointi, tarkistus, siivous.
 
 ## Kuvakaappaukset
 
 Vaalea ja tumma teema (vaihto ylärivin napista).
 
-**1. Hae malli**
+**1. Hae malli (internet)**
 
 ![Hae malli](docs/1-hae-malli.png)
 
@@ -22,7 +22,7 @@ Vaalea ja tumma teema (vaihto ylärivin napista).
 
 </details>
 
-**2. Vie OpenShift AI:hin: air-gapped-ohje vaihekaavioineen**
+**2. Vie malli (on-prem): air-gapped-ohje vaihekaavioineen**
 
 ![Air-gapped-ohje](docs/2-air-gap-ohje.png)
 

@@ -117,8 +117,8 @@ Mallit asuvat kontin kirjoituskerroksessa (Rancher/Docker Desktopissa VM:n levyl
 
 ## 4. Ensimmäinen käyttö
 
-1. **1. Hae malli**: vasemmalla Lataa Hugging Facesta, oikealla Levytila ja tallennetut mallit. Mallin voi hakea Hugging Facesta hakusanalla tai kirjoittaa repo ID:n käsin. Haku: järjestys (ladatuimmat, päivitetyimmät, uusimmat, tykätyimmät), 10 tulosta/sivu (max 10 sivua), mallin koko (GB), luonti- ja päivityspäivä, **Tyhjennä** tyhjentää haun; **Valitse** täyttää repo ID:n kenttään, ja alla oleva **Lataa**-painike aloittaa latauksen ja **Keskeytä lataus** pysäyttää sen sekä poistaa mallin keskeneräiset tiedostot. Haku vaatii yhteyden huggingface.co:hon eikä toimi offline-tilassa. Oikeassa sarakkeessa näkyy levytila, laskuri ja mallien poisto.
-2. **2. Vie OpenShift AI:hin**: liitä OpenShift-konsolin *Copy login command* -komento ja paina **Kirjaudu**.
+1. **1. Hae malli (internet)**: vasemmalla Lataa Hugging Facesta, oikealla Levytila ja tallennetut mallit. Mallin voi hakea Hugging Facesta hakusanalla tai kirjoittaa repo ID:n käsin. Haku: järjestys (ladatuimmat, päivitetyimmät, uusimmat, tykätyimmät), 10 tulosta/sivu (max 10 sivua), mallin koko (GB), luonti- ja päivityspäivä, **Tyhjennä** tyhjentää haun; **Valitse** täyttää repo ID:n kenttään, ja alla oleva **Lataa**-painike aloittaa latauksen ja **Keskeytä lataus** pysäyttää sen sekä poistaa mallin keskeneräiset tiedostot. Haku vaatii yhteyden huggingface.co:hon eikä toimi offline-tilassa. Oikeassa sarakkeessa näkyy levytila, laskuri ja mallien poisto.
+2. **2. Vie malli (on-prem)**: liitä OpenShift-konsolin *Copy login command* -komento ja paina **Kirjaudu**.
 3. Valitse malli, projekti, PVC:n nimi ja koko. Koko ehdotetaan automaattisesti.
 4. Paina **Kopioi malli PVC:lle** ja seuraa etenemistä (aika, nopeus ja arvio jäljellä). **Tyhjennä** nollaa lomakkeen, etenemisen ja ohjeruudun, jotta voit tehdä uuden kopioinnin.
 5. Kun valmis, tee deployment OpenShift AI:ssa sovelluksen näyttämien ohjeiden mukaan (*Models → Deploy model*, Cluster storage, vLLM-runtime).

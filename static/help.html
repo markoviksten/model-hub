@@ -14,7 +14,7 @@
 <p><strong>Varoitus:</strong> älä käytä <code>docker rm</code>, <code>docker run --rm</code> tai <code>docker compose down</code>. Ne poistavat kontin ja sen mallit. Pysäytä aina komennolla <code>./stop.sh</code> tai <code>docker stop model-hub</code>.</p>
 <p>Lataus voidaan keskeyttää <strong>Keskeytä lataus</strong> -painikkeella, jolloin keskeneräiset tiedostot poistetaan. Levytila ja mallien poisto ovat oikeassa sarakkeessa.</p>
 
-<p>Export-komennon voi kopioida välilehden <strong>2. Vie OpenShift AI:hin</strong> alussa olevasta <strong>Vie air-gappediin</strong> -laatikosta.</p>
+<p>Export-komennon voi kopioida välilehden <strong>2. Vie malli (on-prem)</strong> alussa olevasta <strong>Vie air-gappediin</strong> -laatikosta.</p>
 
 <h3>Siirto tikulle</h3>
 <table>
@@ -68,7 +68,7 @@ bash ./start.sh</pre>
 <h4>2.4 Vie malli OpenShift AI:hin</h4>
 <ol>
   <li><strong>Perusta ensin OpenShift AI -projekti</strong>, johon haluat julkaista mallit (<em>Projects → Create project</em>), tai rastita lomakkeella <em>Luo projekti, jos sitä ei ole</em>. Käytä samaa projektia deploymentissa ja testauksessa.</li>
-  <li>Avaa välilehti <strong>2. Vie OpenShift AI:hin</strong>.</li>
+  <li>Avaa välilehti <strong>2. Vie malli (on-prem)</strong>.</li>
   <li>Liitä konsolin <em>Copy login command</em> -komento ja paina <strong>Kirjaudu</strong>.</li>
   <li>Valitse malli, projekti, PVC:n nimi ja koko (koko ehdotetaan).</li>
   <li>Paina <strong>Kopioi malli PVC:lle</strong>. <strong>Tyhjennä</strong> nollaa lomakkeen ja etenemisen seuraavaa kopiointia varten.</li>

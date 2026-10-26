@@ -49,7 +49,7 @@ Avaa http://127.0.0.1:8767.
 
 ### 1.2 Lataa mallit
 
-Välilehti **1. Hae malli**: hae malli Hugging Facesta hakusanalla (tulokset sivutettu, koko GB ja päivämäärät näkyvät) tai kirjoita repo ID. Käynnissä olevan latauksen voi pysäyttää **Keskeytä lataus** -napilla; keskeneräiset tiedostot poistetaan. Seuraa levytilaa sivun alareunasta (*Levytila ja tallennetut mallit*). Tarpeettomat mallit voi poistaa **Poista**-napilla.
+Välilehti **1. Hae malli (internet)**: hae malli Hugging Facesta hakusanalla (tulokset sivutettu, koko GB ja päivämäärät näkyvät) tai kirjoita repo ID. Käynnissä olevan latauksen voi pysäyttää **Keskeytä lataus** -napilla; keskeneräiset tiedostot poistetaan. Seuraa levytilaa sivun alareunasta (*Levytila ja tallennetut mallit*). Tarpeettomat mallit voi poistaa **Poista**-napilla.
 
 - Gated-mallit: anna HF-token (se ei tallennu).
 
@@ -73,7 +73,7 @@ Mallipainot pakkautuvat huonosti, joten arkisto on lähes yhtä suuri kuin malli
 
 ### 1.4 Kopioi tikulle
 
-(Sovelluksen välilehden **2. Vie OpenShift AI:hin** alussa oleva **Vie air-gappediin** -laatikko näyttää export-komennon kopioitavana. Komento ajetaan silti isäntäkoneen terminaalissa, koska kontti ei voi paketoida itseään.)
+(Sovelluksen välilehden **2. Vie malli (on-prem)** alussa oleva **Vie air-gappediin** -laatikko näyttää export-komennon kopioitavana. Komento ajetaan silti isäntäkoneen terminaalissa, koska kontti ei voi paketoida itseään.)
 
 Vaiheen 1 koneella (internet) kansiossa `model_hub/dist/` on kaksi tiedostoa. Kopioi ne tikulle mihin tahansa kansioon (esim. tikun juureen tai kansioon `model-hub-siirto`):
 
@@ -134,7 +134,7 @@ Avaa http://127.0.0.1:8767. Etusivun rivillä lukee, että lataus on pois käyt�
 
 ### 2.3 Vie malli OpenShift AI:hin
 
-1. Välilehti **2. Vie OpenShift AI:hin**.
+1. Välilehti **2. Vie malli (on-prem)**.
 2. Liitä OpenShift-konsolin *Copy login command* -komento ja paina **Kirjaudu**.
 3. Valitse malli, projekti, PVC:n nimi ja koko (koko ehdotetaan).
 4. Paina **Kopioi malli PVC:lle** ja seuraa etenemistä.
