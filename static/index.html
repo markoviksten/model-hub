@@ -662,7 +662,7 @@ function showNext(r) {
       <p class="muted">Jos CPU ei tue bf16:ta, käytä <code>--dtype=float32</code>.</p>
       <p style="margin:.5rem 0 .25rem">Ympäristömuuttujat:</p>
       <div class="cmdbox"><pre>VLLM_CPU_KVCACHE_SPACE=1\nHF_HUB_OFFLINE=1</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
-      <p class="muted">KV-cache (GiB) + malli (Qwen2-0.5B latautuu ~5 GiB RAM:iin) pitää mahtua muistirajaan: 8 Gi rajalla käytä 1-2. Liian suuri arvo kaataa käynnistyksen virheeseen <code>Available memory ... less than requested memory for kv</code>. CPU:lla vastaukset ovat hitaita (noin 5-20 tok/s pienelle mallille): rajoita <code>max_tokens</code> ja nosta tarvittaessa notebookin <code>TIMEOUT</code>-arvoa.</p>
+      <p class="muted">KV-cache (GiB) + malli (Qwen2-0.5B latautuu ~5 GiB RAM:iin) pitää mahtua muistirajaan: 8 Gi rajalla käytä 1-2. Liian suuri arvo kaataa käynnistyksen virheeseen <code>Available memory ... less than requested memory for kv</code>. CPU:lla vastaukset ovat hitaita (noin 5-20 tok/s pienelle mallille): rajoita <code>max_tokens</code> (esim. 100) tai käytä streamingia. OpenShift-reitti katkaisee pyynnön oletuksena 30 s jälkeen (<code>504 Gateway Time-out</code>); nosta rajaa: <code>oc annotate route &lt;deployment&gt; -n &lt;projekti&gt; haproxy.router.openshift.io/timeout=300s --overwrite</code>. Ensimmäinen pyyntö käynnistyksen jälkeen on hidas (lämmittely, useita minuutteja).</p>
     </details>`}`;
   $("next").classList.remove("hidden");
   $("next").scrollIntoView({ behavior: "smooth", block: "nearest" });
