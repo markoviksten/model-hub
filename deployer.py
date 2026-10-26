@@ -619,3 +619,50 @@ def get_deploy(job_id: str) -> DeployStatus:
     if job is None:
         raise HTTPException(404, "Tehtävää ei löytynyt.")
     return _status(job)
+
+ROUTE_TIMEOUT_ANN = "haproxy.router.openshift.io/timeout"
+MAX_ISVCS = 100
+
+
+class TimeoutRequest(BaseModel):
+    """Request body for raising an InferenceService route timeout."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    namespace: str = Field(..., max_length=63)
+    timeout_seconds: int = Field(..., ge=30, le=3600)
+
+
+@router.get("/isvcs")
+def list_isvcs(namespace: str) -> dict:
+    """List InferenceServices of a project with their route-timeout annotation."""
+    if not DNS_RE.match(namespace):
+        raise HTTPException(422, "Virheellinen projektin nimi.")
+    res = _oc(["get", "inferenceservice", "-n", namespace, "-o", "json"], timeout=60)
+    if res.returncode != 0:
+        log.error("oc get inferenceservice failed: %s", _redact(res.stderr))
+        raise HTTPException(502, "InferenceService-listan haku epäonnistui (tarkista projekti ja oikeudet).")
+    items = []
+    for it in json.loads(res.stdout).get("items", [])[:MAX_ISVCS]:
+        meta = it.get("metadata", {})
+        ready = any(c.get("type") == "Ready" and c.get("status") == "True"
+                    for c in it.get("status", {}).get("conditions", []))
+        items.append({"name": meta.get("name"),
+                      "display_name": meta.get("annotations", {}).get("openshift.io/display-name"),
+                      "timeout": meta.get("annotations", {}).get(ROUTE_TIMEOUT_ANN),
+                      "ready": ready})
+    return {"namespace": namespace, "items": items}
+
+
+@router.post("/isvcs/{name}/timeout")
+def set_isvc_timeout(name: str, req: TimeoutRequest) -> dict:
+    """Set the route timeout annotation on an InferenceService (odh-model-controller copies it to the Route)."""
+    if not DNS_RE.match(name) or not DNS_RE.match(req.namespace):
+        raise HTTPException(422, "Virheellinen nimi.")
+    value = f"{req.timeout_seconds}s"
+    res = _oc(["annotate", "inferenceservice", name, "-n", req.namespace,
+               f"{ROUTE_TIMEOUT_ANN}={value}", "--overwrite"], timeout=60)
+    if res.returncode != 0:
+        log.error("oc annotate failed: %s", _redact(res.stderr))
+        raise HTTPException(502, "Aikakatkaisun asetus epäonnistui (tarkista nimi ja oikeudet).")
+    return {"name": name, "namespace": req.namespace, "timeout": value}

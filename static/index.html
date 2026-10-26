@@ -651,6 +651,17 @@ function showNext(r) {
         : `<li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v1/models -H "Authorization: Bearer &lt;token&gt;"</code></li>
       <li>Kirjaa muistiin malli-id (<code>/v1/models</code>) ja base URL (<code>https://&lt;endpoint&gt;/v1</code>) gateway-liitosta varten</li>`}
     </ol>
+    <details style="margin-top:.75rem" id="toBox" data-ns="${esc(r.namespace)}"><summary><strong>Hidas malli? Nosta reitin aikakatkaisua (504 Gateway Time-out)</strong></summary>
+      <p class="muted">OpenShift-reitti katkaisee pyynnön oletuksena 30 s jälkeen. Kun deployment on luotu OpenShift AI:ssa, valitse se alta ja aseta aikakatkaisu. Sovellus asettaa annotaation <code>haproxy.router.openshift.io/timeout</code> InferenceServiceen, ja OpenShift AI kopioi sen reitille. Vaatii oc-kirjautumisen.</p>
+      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <div class="cds--select"><div class="cds--select-input__wrapper"><select class="cds--select-input" id="toIsvc" aria-label="InferenceService" style="min-width:14rem"></select></div></div>
+        <div class="cds--select"><div class="cds--select-input__wrapper"><select class="cds--select-input" id="toSecs" aria-label="Aikakatkaisu">
+          <option value="120">120 s</option><option value="300" selected>300 s</option><option value="600">600 s</option><option value="1800">1800 s</option></select></div></div>
+        <button class="cds--btn cds--btn--tertiary cds--btn--sm" type="button" id="toReload">Päivitä lista</button>
+        <button class="cds--btn cds--btn--primary cds--btn--sm" type="button" id="toSet">Aseta</button>
+      </div>
+      <div id="toMsg" style="margin-top:.5rem"></div>
+    </details>
     ${ovms ? "" : `<details style="margin-top:.75rem"><summary><strong>Ei GPU:ta? Julkaise CPU:lle (testikäyttö)</strong></summary>
       <ol class="next">
         <li>Red Hatin valmis <strong>vLLM CPU</strong> -runtime on tehty vain ppc64le/s390x-koneille (x86-klusterilla <code>ImagePullBackOff: no image found ... amd64</code>). Lisää x86-runtime: lataa <a href="/static/vllm-cpu-x86-servingruntime.yaml" download>vllm-cpu-x86-servingruntime.yaml</a>, avaa <em>Settings → Serving runtimes → Add</em>, valitse <em>Single-model serving platform</em> ja <em>REST</em>, <em>Upload files</em> (tai <em>Start from scratch</em> ja liitä YAML) ja <em>Create</em>. YAML sisältää jo alla olevat argumentit ja ympäristömuuttujat. Air-gapped: peilaa image <code>vllm/vllm-openai-cpu:v0.32.0-x86_64</code> omaan rekisteriin ja muuta <code>image</code>-rivi.</li>
@@ -662,11 +673,36 @@ function showNext(r) {
       <p class="muted">Jos CPU ei tue bf16:ta, käytä <code>--dtype=float32</code>.</p>
       <p style="margin:.5rem 0 .25rem">Ympäristömuuttujat:</p>
       <div class="cmdbox"><pre>VLLM_CPU_KVCACHE_SPACE=1\nHF_HUB_OFFLINE=1</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
-      <p class="muted">KV-cache (GiB) + malli (Qwen2-0.5B latautuu ~5 GiB RAM:iin) pitää mahtua muistirajaan: 8 Gi rajalla käytä 1-2. Liian suuri arvo kaataa käynnistyksen virheeseen <code>Available memory ... less than requested memory for kv</code>. CPU:lla vastaukset ovat hitaita (noin 5-20 tok/s pienelle mallille): rajoita <code>max_tokens</code> (esim. 100) tai käytä streamingia. OpenShift-reitti katkaisee pyynnön oletuksena 30 s jälkeen (<code>504 Gateway Time-out</code>); nosta rajaa: <code>oc annotate route &lt;deployment&gt; -n &lt;projekti&gt; haproxy.router.openshift.io/timeout=300s --overwrite</code>. Ensimmäinen pyyntö käynnistyksen jälkeen on hidas (lämmittely, useita minuutteja).</p>
+      <p class="muted">KV-cache (GiB) + malli (Qwen2-0.5B latautuu ~5 GiB RAM:iin) pitää mahtua muistirajaan: 8 Gi rajalla käytä 1-2. Liian suuri arvo kaataa käynnistyksen virheeseen <code>Available memory ... less than requested memory for kv</code>. CPU:lla vastaukset ovat hitaita (noin 5-20 tok/s pienelle mallille): rajoita <code>max_tokens</code> (esim. 100) tai käytä streamingia. Reitin 30 s aikakatkaisu (<code>504 Gateway Time-out</code>) nostetaan yllä olevasta kohdasta. Ensimmäinen pyyntö käynnistyksen jälkeen on hidas (lämmittely, useita minuutteja).</p>
     </details>`}`;
+  loadIsvcs();
   $("next").classList.remove("hidden");
   $("next").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
+
+/** Fill the InferenceService dropdown of the route-timeout box from the project in the result box. */
+async function loadIsvcs() {
+  const box = $("toBox"); if (!box) return;
+  const sel = $("toIsvc"), msg = $("toMsg");
+  msg.innerHTML = "";
+  try {
+    const d = await api("/api/isvcs?namespace=" + encodeURIComponent(box.dataset.ns));
+    sel.innerHTML = d.items.map(i => `<option value="${esc(i.name)}">${esc(i.name)}${i.timeout ? " (nyt " + esc(i.timeout) + ")" : ""}</option>`).join("")
+      || "<option value=\"\">(ei deploymenteja)</option>";
+  } catch (e) { sel.innerHTML = "<option value=\"\">-</option>"; msg.innerHTML = notify("warning", e.message); }
+}
+document.addEventListener("click", async e => {
+  if (e.target.id === "toReload") { loadIsvcs(); return; }
+  if (e.target.id !== "toSet") return;
+  const name = $("toIsvc").value, msg = $("toMsg");
+  if (!name) { msg.innerHTML = notify("warning", "Valitse deployment (luo se ensin OpenShift AI:ssa ja päivitä lista)."); return; }
+  try {
+    const r = await post("/api/isvcs/" + encodeURIComponent(name) + "/timeout",
+      { namespace: $("toBox").dataset.ns, timeout_seconds: parseInt($("toSecs").value, 10) });
+    msg.innerHTML = notify("success", `Aikakatkaisu ${r.timeout} asetettu deploymentille ${r.name}. Reitti päivittyy hetken kuluttua.`);
+    loadIsvcs();
+  } catch (err) { msg.innerHTML = notify("error", err.message); }
+});
 
 /* ---- help dialog ---- */
 let helpLoaded = false;
