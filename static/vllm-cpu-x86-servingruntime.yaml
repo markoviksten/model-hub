@@ -45,8 +45,8 @@ spec:
           value: /tmp/vllm_cache
         - name: HF_HUB_OFFLINE
           value: "1"
-        - name: VLLM_CPU_KVCACHE_SPACE   # KV cache in GiB; must fit in the memory limit
-          value: "4"
+        - name: VLLM_CPU_KVCACHE_SPACE   # KV cache in GiB. Model load needs ~5 GiB RAM, so with an 8Gi limit use 1-2
+          value: "1"
       ports:
         - containerPort: 8080
           protocol: TCP
