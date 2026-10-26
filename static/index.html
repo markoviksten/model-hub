@@ -295,6 +295,7 @@ docker images | grep model-hub                      # näyttää model-hub:airga
       <div class="cds--form-item"><label class="cds--label" for="img">Apupodin image (air-gapped: oma rekisteri, jossa tar)</label><input class="cds--text-input" type="text" id="img" autocomplete="off"></div>
     </div>
     <p class="muted" id="pathHint"></p>
+    <details id="advForm" class="hidden" style="margin:.5rem 0"><summary><strong>Mallikohtaiset suositukset julkaisuun</strong></summary><div id="advFormBody"></div></details>
     <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="mkns">
       <label class="cds--checkbox-label" for="mkns"><span class="cds--checkbox-label-text">Luo projekti, jos sitä ei ole</span></label></div>
     <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="root">
@@ -570,7 +571,7 @@ function updatePathHint() {
   const fw = info && info.framework ? ` <strong>Model framework</strong>: <code>${esc(info.framework)}</code>.` : "";
   $("pathHint").innerHTML = m ? `OpenShift AI:n <strong>Model path</strong> tulee olemaan <code>${esc(m)}</code> (URI <code>pvc://${esc(pvc)}/${esc(m)}</code>).${fw}` : "";
 }
-$("model").onchange = () => { suggestSize(); suggestPvc(); updatePathHint(); };
+$("model").onchange = () => { suggestSize(); suggestPvc(); updatePathHint(); loadAdvice($("model").value, "advFormBody", "advForm"); };
 $("pvc").oninput = () => { pvcTouched = true; updatePathHint(); };
 
 $("login").onclick = async () => {
@@ -637,6 +638,49 @@ function k8sName(s) {
   return s.toLowerCase().replace(/[^a-z0-9\s_-]/g, "").trim().replace(/[\s_]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+/** Build a copyable command box. */
+function cmdBox(text) {
+  return `<div class="cmdbox"><pre>${esc(text)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>`;
+}
+/** Render the advice JSON (model summary, warnings, CPU/GPU recommendations) as HTML; all text is escaped. */
+function adviceHtml(a) {
+  const s = a.summary, q = s.quantization;
+  const rows = [
+    ["Arkkitehtuuri", s.architecture || "-"],
+    ["Koko levyllä", gb(s.size_bytes)],
+    ["Tarkkuus (dtype)", s.dtype || "-"],
+    ["Kvantisointi", q ? q.method + (q.format ? " / " + q.format : "") : "ei"],
+    ["MoE", s.moe ? `kyllä (${s.experts} asiantuntijaa, ${s.experts_per_token || "?"} aktiivista/token)` : "ei"],
+    ["Multimodaalinen", s.multimodal ? "kyllä" : "ei"],
+    ["Natiivi konteksti", s.native_context ? s.native_context + " tokenia" : "-"],
+  ];
+  const warn = a.warnings.map(w => notify(w.level === "warn" ? "warning" : "info", w.text)).join("");
+  const env = o => Object.entries(o).map(([k, v]) => k + "=" + v).join("\n");
+  const c = a.cpu, g = a.gpu;
+  const cpu = c ? `<p style="margin:.75rem 0 .25rem"><strong>${g ? "CPU-ajo" : "Resurssit"}</strong>: muisti noin <strong>${c.memory_gi} Gi</strong>, ${c.cpu} CPU` +
+    (c.kv_cache_gi ? `, KV-cache ${c.kv_cache_gi} GiB, max-model-len ${c.max_model_len}` : "") + `</p>` +
+    (c.args.length ? `<p class="muted" style="margin:.25rem 0">Runtime-argumentit (vain CPU):</p>${cmdBox(c.args.join("\n"))}` : "") +
+    (Object.keys(c.env).length ? `<p class="muted" style="margin:.25rem 0">Ympäristömuuttujat:</p>${cmdBox(env(c.env))}` : "") : "";
+  const gpu = g ? `<p style="margin:.75rem 0 .25rem"><strong>GPU-ajo</strong>: GPU-muistia vähintään noin <strong>${g.gpu_memory_gi} Gi</strong> (yksi tai useampi GPU)</p>` +
+    `<p class="muted" style="margin:.25rem 0">Runtime-argumentit (vain GPU):</p>${cmdBox(g.args.join("\n"))}` : "";
+  return `<table style="border-collapse:collapse;margin:.5rem 0">${rows.map(r => `<tr><td style="padding:.15rem 1rem .15rem 0" class="muted">${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join("")}</table>` +
+    warn + cpu + gpu +
+    `<p style="margin:.75rem 0 .25rem"><strong>Yleiset</strong>: PVC vähintään <strong>${a.pvc_gi} Gi</strong>, reitin aikakatkaisu <strong>${a.route_timeout_s} s</strong></p>` +
+    `<p class="muted">Arvot ovat arvioita mallin config.json:sta ja tiedostokoosta, ei takuita. Tarkista aina vLLM-version dokumentaatiosta.</p>`;
+}
+/** Fetch advice for a local model and render it into element `bodyId` (shows `boxId` when given). */
+async function loadAdvice(name, bodyId, boxId) {
+  const box = boxId ? $(boxId) : null, body = $(bodyId);
+  if (!body) return;
+  if (box) box.classList.add("hidden");
+  if (!name) return;
+  try {
+    const a = await api("/api/models/" + encodeURIComponent(name) + "/advice");
+    body.innerHTML = adviceHtml(a);
+  } catch (e) { body.innerHTML = notify("warning", e.message); }
+  if (box) box.classList.remove("hidden");
+}
+
 function showNext(r) {
   const ovms = r.runtime === "ovms";
   const kname = k8sName(r.model_path || "");
@@ -669,6 +713,7 @@ function showNext(r) {
         : `<li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v1/models -H "Authorization: Bearer &lt;token&gt;"</code></li>
       <li>Kirjaa muistiin malli-id (<code>/v1/models</code>) ja base URL (<code>https://&lt;endpoint&gt;/v1</code>) gateway-liitosta varten</li>`}
     </ol>
+    <details style="margin-top:.75rem" open><summary><strong>Mallikohtaiset suositukset (${esc(r.model_path)})</strong></summary><div id="advNext" class="muted">Ladataan...</div></details>
     <details style="margin-top:.75rem" id="toBox" data-ns="${esc(r.namespace)}"><summary><strong>Hidas malli? Nosta reitin aikakatkaisua (504 Gateway Time-out)</strong></summary>
       <p class="muted">OpenShift-reitti katkaisee pyynnön oletuksena 30 s jälkeen. Kun deployment on luotu OpenShift AI:ssa, valitse se alta ja aseta aikakatkaisu. Sovellus asettaa annotaation <code>haproxy.router.openshift.io/timeout</code> InferenceServiceen, ja OpenShift AI kopioi sen reitille. Vaatii oc-kirjautumisen.</p>
       <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
@@ -681,7 +726,7 @@ function showNext(r) {
       <div id="toMsg" style="margin-top:.5rem"></div>
     </details>
     ${ovms ? "" : `<details style="margin-top:.75rem"><summary><strong>Ei GPU:ta? Julkaise CPU:lle (testikäyttö)</strong></summary>
-      <p class="muted"><strong>Alla olevat asetukset koskevat vain CPU-ajoa</strong> (ei GPU:ta). GPU-ajossa niitä ei käytetä, paitsi <code>HF_HUB_OFFLINE=1</code>, joka sopii myös GPU:lle air-gapped-ympäristössä.</p>
+      <p class="muted"><strong>Alla olevat esimerkkiarvot sopivat pienelle mallille (Qwen2-0.5B); oman mallisi arvot ovat yllä kohdassa Mallikohtaiset suositukset.</strong> Asetukset koskevat vain CPU-ajoa (ei GPU:ta). GPU-ajossa niitä ei käytetä, paitsi <code>HF_HUB_OFFLINE=1</code>, joka sopii myös GPU:lle air-gapped-ympäristössä.</p>
       <ol class="next">
         <li>Red Hatin valmis <strong>vLLM CPU</strong> -runtime on tehty vain ppc64le/s390x-koneille (x86-klusterilla <code>ImagePullBackOff: no image found ... amd64</code>). Lisää x86-runtime: lataa <a href="/static/vllm-cpu-x86-servingruntime.yaml" download>vllm-cpu-x86-servingruntime.yaml</a>, avaa <em>Settings → Serving runtimes → Add</em>, valitse <em>Single-model serving platform</em> ja <em>REST</em>, <em>Upload files</em> (tai <em>Start from scratch</em> ja liitä YAML) ja <em>Create</em>. <strong>Tämä YAML sisältää jo kaikki alla luetellut argumentit ja ympäristömuuttujat</strong>, joten kun käytät sitä, et syötä niitä lomakkeelle itse. Syötä ne käsin vain, jos käytät jotain muuta vLLM-runtimea. Air-gapped: peilaa image <code>vllm/vllm-openai-cpu:v0.32.0-x86_64</code> omaan rekisteriin ja muuta <code>image</code>-rivi.</li>
         <li>Deploy model: valitse runtimeksi <strong>vLLM CPU (x86_64)</strong>.</li>
@@ -695,6 +740,7 @@ function showNext(r) {
       <p class="muted"><code>VLLM_CPU_KVCACHE_SPACE=1</code> = KV-cache 1 GiB CPU:n RAM:ista. <code>HF_HUB_OFFLINE=1</code> estää yrityksen ladata mitään Hugging Facesta (malli luetaan PVC:ltä). KV-cache (GiB) + malli (Qwen2-0.5B latautuu ~5 GiB RAM:iin) pitää mahtua muistirajaan: 8 Gi rajalla käytä 1-2. Liian suuri arvo kaataa käynnistyksen virheeseen <code>Available memory ... less than requested memory for kv</code>. CPU:lla vastaukset ovat hitaita (noin 5-20 tok/s pienelle mallille): rajoita <code>max_tokens</code> (esim. 100) tai käytä streamingia. Reitin 30 s aikakatkaisu (<code>504 Gateway Time-out</code>) nostetaan yllä olevasta kohdasta. Ensimmäinen pyyntö käynnistyksen jälkeen on hidas (lämmittely, useita minuutteja).</p>
     </details>`}`;
   loadIsvcs();
+  loadAdvice(r.model_path, "advNext");
   $("next").classList.remove("hidden");
   $("next").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }

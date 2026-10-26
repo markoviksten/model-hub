@@ -17,6 +17,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+import advisor
 import runtime as rt
 import settings
 
@@ -282,6 +283,13 @@ def list_models() -> dict:
                                "runtime": rt.read_manifest(d)["runtime"],
                                "framework": rt.framework(rt.read_manifest(d))})
     return {"dir": str(settings.MODELS_DIR), "models": models}
+
+
+@router.get("/models/{name}/advice")
+def model_advice(name: str) -> dict:
+    """Read-only deployment advice (estimates) for a local model folder."""
+    path = _model_path(name)
+    return advisor.advise(path, _local_size(path))
 
 
 def _pvc_manifest(req: DeployRequest) -> dict:
