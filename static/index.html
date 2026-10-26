@@ -284,7 +284,7 @@ docker images | grep model-hub                      # näyttää model-hub:airga
       <div class="muted" id="modelsDir"></div></div>
     <div class="row">
       <div class="cds--form-item"><label class="cds--label" for="ns">Projekti (namespace)</label><input class="cds--text-input" type="text" id="ns" autocomplete="off" placeholder="llm"></div>
-      <div class="cds--form-item"><label class="cds--label" for="pvc">PVC:n nimi</label><input class="cds--text-input" type="text" id="pvc" autocomplete="off" value="model-storage"></div>
+      <div class="cds--form-item"><label class="cds--label" for="pvc">PVC:n nimi</label><input class="cds--text-input" type="text" id="pvc" autocomplete="off" value="model-storage"><div class="muted">Oletus: oma PVC jokaiselle mallille (RWO-levy voi olla kiinni vain yhdellä nodella kerrallaan). Voit kirjoittaa saman nimen usealle mallille, jos haluat jakaa PVC:n.</div></div>
       <div class="cds--form-item"><label class="cds--label" for="size">PVC:n koko (Gi)</label><input class="cds--text-input" type="number" id="size" autocomplete="off" min="1" max="2000" value="5"></div>
     </div>
     <div class="row">
@@ -547,9 +547,17 @@ async function loadModels() {
     ? models.map(m => `<option value="${esc(m.name)}">${esc(m.name)} (${esc(m.runtime)}, ${gb(m.size_bytes)})</option>`).join("")
     : `<option value="">Ei malleja (hae tai tuo malli ensin)</option>`;
   suggestSize();
+  suggestPvc();
   updatePathHint();
 }
 
+let pvcTouched = false;
+/** Suggest a per-model PVC name (<model>-pvc) unless the user has typed their own. */
+function suggestPvc() {
+  if (pvcTouched) return;
+  const k = k8sName($("model").value || "").slice(0, 55).replace(/-+$/, "");
+  $("pvc").value = k ? k + "-pvc" : "model-storage";
+}
 function suggestSize() {
   const m = models.find(x => x.name === $("model").value);
   if (m) $("size").value = Math.max(5, Math.ceil(m.size_bytes * 1.5 / 1073741824) + 1);
@@ -561,8 +569,8 @@ function updatePathHint() {
   const fw = info && info.framework ? ` <strong>Model framework</strong>: <code>${esc(info.framework)}</code>.` : "";
   $("pathHint").innerHTML = m ? `OpenShift AI:n <strong>Model path</strong> tulee olemaan <code>${esc(m)}</code> (URI <code>pvc://${esc(pvc)}/${esc(m)}</code>).${fw}` : "";
 }
-$("model").onchange = () => { suggestSize(); updatePathHint(); };
-$("pvc").oninput = updatePathHint;
+$("model").onchange = () => { suggestSize(); suggestPvc(); updatePathHint(); };
+$("pvc").oninput = () => { pvcTouched = true; updatePathHint(); };
 
 $("login").onclick = async () => {
   $("loginMsg").textContent = "";
@@ -616,7 +624,7 @@ function clearDeploy() {
   for (const id of ["progress", "next"]) $(id).classList.add("hidden");
   for (const id of ["copyBar", "steps", "msg", "next"]) $(id).innerHTML = "";
   $("log").textContent = "";
-  $("ns").value = ""; $("sc").value = ""; $("pvc").value = "model-storage";
+  $("ns").value = ""; $("sc").value = ""; pvcTouched = false; suggestPvc();
   $("mkns").checked = false; $("root").checked = false; $("ovw").checked = false;
   $("img").value = info.loader_image || "";
   suggestSize(); updatePathHint();
