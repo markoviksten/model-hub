@@ -197,10 +197,11 @@
     <h3 class="boxh">1. Hae mallit Model Hubiin</h3>
     <p>Välilehti <strong>1. Hae malli (internet)</strong>: hae malli Hugging Facesta ja lataa se kontin <code>/models</code>-kansioon. Toista kaikille malleille, jotka tarvitset air-gapped-päässä.</p>
     <h3 class="boxh">2. Vie Model Hub: aja komento kontin ulkopuolella</h3>
-    <p>Kontti ei voi paketoida itseään, joten komento ajetaan <strong>isäntäkoneen terminaalissa</strong> kansiossa <code>model_hub</code>, ei tässä sovelluksessa. Lataukset ja kopioinnit kannattaa antaa valmistua ensin.</p>
-    <p><strong>Bash</strong> (Linux, macOS, Git Bash, WSL):</p>
+    <p>Kontti ei voi paketoida itseään, joten komento ajetaan <strong>isäntäkoneen terminaalissa</strong>, ei tässä sovelluksessa. Lataukset ja kopioinnit kannattaa antaa valmistua ensin.</p>
+    <p><strong>Missä kansiossa?</strong> Siinä <code>model_hub</code>-kansiossa, jossa ovat tiedostot <code>export.sh</code>, <code>export_with_models.ps1</code> ja <code>start.sh</code> (se kansio, josta Model Hub on asennettu, esim. <code>C:\Users\&lt;käyttäjä&gt;\Documents\model_hub</code>). Siirry ensin sinne: Windowsissa avaa PowerShell ja aja <code>cd C:\polku\model_hub</code>; Linuxissa <code>cd ~/model_hub</code>. Voit myös avata kansion Resurssienhallinnassa ja kirjoittaa osoiteriville <code>powershell</code>. Valmiit tiedostot syntyvät samaan kansioon alikansioon <code>dist</code>.</p>
+    <p><strong>Bash</strong> (Linux, macOS, Git Bash, WSL; aja kansiossa <code>model_hub</code>):</p>
     <div class="cmdbox"><pre>./export.sh</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
-    <p><strong>Windows PowerShell:</strong></p>
+    <p><strong>Windows PowerShell</strong> (aja kansiossa <code>model_hub</code>):</p>
     <div class="cmdbox"><pre>powershell.exe -ExecutionPolicy Bypass -File ./export_with_models.ps1</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <p>Nopeampi (ei pakkausta, malliarkisto ei pakkaudu juuri): lisää loppuun <code>--no-compress</code> (PowerShell: <code>-NoCompress</code>).</p>
     <h3 class="boxh">2b. Jos skriptejä ei ole saatavilla</h3>
@@ -210,8 +211,9 @@ mkdir -p dist
 docker save model-hub:airgap | gzip > dist/model-hub-with-models.tar.gz
 cd dist && sha256sum model-hub-with-models.tar.gz > model-hub-with-models.tar.gz.sha256</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     <h3 class="boxh">3. Kopioi tikulle</h3>
+    <p>Kopioi nämä tiedostot Resurssienhallinnassa tai komentoriviltä kansiosta <code>model_hub</code> tikulle:</p>
     <ul class="dlglist">
-      <li><code>dist/model-hub-with-models.tar.gz</code> ja <code>dist/model-hub-with-models.tar.gz.sha256</code> (pakolliset)</li>
+      <li><code>model_hub\dist\model-hub-with-models.tar.gz</code> ja <code>model_hub\dist\model-hub-with-models.tar.gz.sha256</code> (pakolliset)</li>
       <li><code>start.sh</code> kansiosta <code>model_hub</code> (suositus)</li>
     </ul>
     <p>Tikku: exFAT tai NTFS (FAT32 ei salli yli 4 GB:n tiedostoja). Vapaata tilaa tarvitaan vähintään arkiston koko.</p>
