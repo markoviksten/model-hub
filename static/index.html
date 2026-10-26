@@ -623,8 +623,14 @@ function clearDeploy() {
 }
 $("clearDeploy").onclick = clearDeploy;
 
+/** OpenShift AI's resource name for a deployment name: lowercase, dots/specials removed, spaces to dashes (e.g. Qwen2-0.5B-Instruct -> qwen2-05b-instruct). */
+function k8sName(s) {
+  return s.toLowerCase().replace(/[^a-z0-9\s_-]/g, "").trim().replace(/[\s_]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
 function showNext(r) {
   const ovms = r.runtime === "ovms";
+  const kname = k8sName(r.model_path || "");
   $("next").innerHTML = `
     <strong>Malli on PVC:llä. Tee seuraavaksi deployment OpenShift AI:ssa:</strong>
     <p style="margin:.75rem 0 .25rem">Kirjoita OpenShift AI:n lomakkeen <strong>Model path</strong> -kenttään (Cluster storage -valinnan jälkeen):</p>
@@ -633,6 +639,9 @@ function showNext(r) {
     <div class="cmdbox"><pre>${esc(r.pvc_uri)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
     ${r.framework ? `<p style="margin:.5rem 0 .25rem">Lomakkeen <strong>Model framework</strong> -kenttään:</p>
     <div class="cmdbox"><pre>${esc(r.framework)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>` : ""}
+    <p style="margin:.5rem 0 .25rem">Suosittelemme deploymentin nimeksi (OpenShift AI:n <strong>Model deployment name</strong>) pelkkiä pieniä kirjaimia, numeroita ja viivoja &ndash; ilman pistettä:</p>
+    <div class="cmdbox"><pre>${esc(kname)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    <p class="muted">Tämä nimi on myös <strong>malli-id</strong>, jota API-kutsuissa ja testinotebookin <code>MODEL_NAME</code>-asetuksessa käytetään: <code>${esc(kname)}</code>. Jos nimessä on isoja kirjaimia tai pisteitä, OpenShift AI muuttaa sen (esim. <code>Qwen2-0.5B-Instruct</code> &rarr; <code>qwen2-05b-instruct</code>) ja väärällä nimellä kutsu epäonnistuu (404).</p>
     ${ovms ? "<p class=\"muted\">Älä lisää versiokansiota (<code>/" + esc(r.version || "1") + "</code>) polun perään: OVMS löytää sen itse.</p>" : ""}
     <ul class="next">
       <li>Runtime: <strong>${esc(r.runtime)}</strong>${r.version ? ` (versio <code>${esc(r.version)}</code>)` : ""}</li>
@@ -640,7 +649,7 @@ function showNext(r) {
       <li>Serving runtime: <strong>${esc(r.serving_runtime)}</strong></li>
     </ul>
     <ol class="next">
-      <li><strong>Models → Deploy model</strong> projektissa <code>${esc(r.namespace)}</code></li>
+      <li><strong>Models → Deploy model</strong> projektissa <code>${esc(r.namespace)}</code>, Model deployment name: <code>${esc(kname)}</code></li>
       <li>Model location: <strong>Cluster storage</strong> → <code>${esc(r.pvc)}</code>, Model path: <code>${esc(r.model_path)}</code>${r.framework ? `, Model framework: <code>${esc(r.framework)}</code>` : ""}</li>
       <li>Serving runtime: <strong>${esc(r.serving_runtime)}</strong></li>
       ${ovms ? "<li>Hardware profile: CPU riittää. OVMS lukee uusimman versiokansion (<code>1/</code>, <code>2/</code> ...)</li>"
