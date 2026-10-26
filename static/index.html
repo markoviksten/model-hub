@@ -644,13 +644,25 @@ function showNext(r) {
       <li>Model location: <strong>Cluster storage</strong> → <code>${esc(r.pvc)}</code>, Model path: <code>${esc(r.model_path)}</code>${r.framework ? `, Model framework: <code>${esc(r.framework)}</code>` : ""}</li>
       <li>Serving runtime: <strong>${esc(r.serving_runtime)}</strong></li>
       ${ovms ? "<li>Hardware profile: CPU riittää. OVMS lukee uusimman versiokansion (<code>1/</code>, <code>2/</code> ...)</li>"
-             : (r.embedding ? "<li><strong>Embedding-malli:</strong> lisää vLLM-argumentti <code>--task=embed</code> (uudemmissa versioissa <code>--runner=pooling</code>); endpoint on <code>/v1/embeddings</code></li>" : "") + "<li>Hardware profile: 1 GPU. Runtime-argumentti esim. <code>--max-model-len=4096</code>, ympäristömuuttuja <code>HF_HUB_OFFLINE=1</code></li>"}
+             : (r.embedding ? "<li><strong>Embedding-malli:</strong> lisää vLLM-argumentti <code>--task=embed</code> (uudemmissa versioissa <code>--runner=pooling</code>); endpoint on <code>/v1/embeddings</code></li>" : "") + "<li>Hardware profile: 1 GPU. Runtime-argumentti esim. <code>--max-model-len=4096</code>, ympäristömuuttuja <code>HF_HUB_OFFLINE=1</code>. <em>Ei GPU:ta? Katso CPU-ohje alla.</em></li>"}
       <li>Valitse <strong>Require token authentication</strong> ja tarvittaessa external route</li>
       ${ovms
         ? `<li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v2/models/${esc(r.model_path)}</code> (malli-nimi on deploymentin nimi Kubernetes-muodossa, esim. <code>bge-small-en-v1.5</code> → <code>bge-small-en-v15</code>) tai käytä testinotebookia (vaihe 8)</li>`
         : `<li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v1/models -H "Authorization: Bearer &lt;token&gt;"</code></li>
       <li>Kirjaa muistiin malli-id (<code>/v1/models</code>) ja base URL (<code>https://&lt;endpoint&gt;/v1</code>) gateway-liitosta varten</li>`}
-    </ol>`;
+    </ol>
+    ${ovms ? "" : `<details style="margin-top:.75rem"><summary><strong>Ei GPU:ta? Julkaise CPU:lle (testikäyttö)</strong></summary>
+      <ol class="next">
+        <li><em>Settings → Serving runtimes</em>: valitse <strong>vLLM CPU</strong> -runtime, jos se on listalla. Jos ei ole, lisää oma (<em>Add serving runtime</em>, kopioi GPU-runtimen YAML, vaihda image vLLM:n CPU-buildiin ja poista GPU-resurssit). Air-gapped: peilaa image ensin omaan rekisteriin.</li>
+        <li>Hardware profile: ilman GPU:ta, esim. 4-8 CPU ja 8-16 Gi muistia.</li>
+        <li>Runtime-argumentit:</li>
+      </ol>
+      <div class="cmdbox"><pre>${esc("--dtype=bfloat16\n--max-model-len=2048" + (r.embedding ? "\n--task=embed" : ""))}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+      <p class="muted">Jos CPU ei tue bf16:ta, käytä <code>--dtype=float32</code>.</p>
+      <p style="margin:.5rem 0 .25rem">Ympäristömuuttujat:</p>
+      <div class="cmdbox"><pre>VLLM_CPU_KVCACHE_SPACE=4\nHF_HUB_OFFLINE=1</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+      <p class="muted">KV-cache (GiB) pitää mahtua muistirajaan. CPU:lla vastaukset ovat hitaita (noin 5-20 tok/s pienelle mallille): rajoita <code>max_tokens</code> ja nosta tarvittaessa notebookin <code>TIMEOUT</code>-arvoa.</p>
+    </details>`}`;
   $("next").classList.remove("hidden");
   $("next").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
