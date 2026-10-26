@@ -17,6 +17,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+import runtime as rt
 import settings
 
 log = logging.getLogger("model_hub.deployer")
@@ -33,7 +34,7 @@ STEPS = [
     "Luo PVC",
     "Käynnistä apupod",
     "Kopioi malli PVC:lle",
-    "Tarkista kopio",
+    "Tarkista kopio ja siirrä paikalleen",
     "Poista apupod",
 ]
 
@@ -64,6 +65,7 @@ class DeployRequest(BaseModel):
     loader_image: str = Field(default=settings.DEFAULT_LOADER_IMAGE, max_length=300)
     create_namespace: bool = False
     run_as_root: bool = False
+    overwrite: bool = False  # replace an existing vLLM model folder on the PVC
 
 
 class Step(BaseModel):
@@ -186,7 +188,8 @@ def _local_size(path: Path) -> int:
     for root, dirs, files in os.walk(path):
         dirs[:] = [d for d in dirs if d != ".cache"]
         for name in files:
-            total += os.path.getsize(os.path.join(root, name))
+            if name != rt.MANIFEST:
+                total += os.path.getsize(os.path.join(root, name))
     return total
 
 
@@ -273,8 +276,10 @@ def list_models() -> dict:
     models = []
     if settings.MODELS_DIR.is_dir():
         for d in sorted(settings.MODELS_DIR.iterdir()):
-            if d.is_dir() and settings.FOLDER_RE.match(d.name) and (d / "config.json").is_file():
-                models.append({"name": d.name, "size_bytes": _local_size(d)})
+            if d.is_dir() and settings.FOLDER_RE.match(d.name) and (
+                    (d / "config.json").is_file() or (d / rt.MANIFEST).is_file()):
+                models.append({"name": d.name, "size_bytes": _local_size(d),
+                               "runtime": rt.read_manifest(d)["runtime"]})
     return {"dir": str(settings.MODELS_DIR), "models": models}
 
 
@@ -340,10 +345,10 @@ def _check(job: dict, res: subprocess.CompletedProcess, msg: str) -> None:
         _fail(msg)
 
 
-def _rsync(job: dict, req: DeployRequest) -> None:
+def _rsync(job: dict, req: DeployRequest, tmp: str) -> None:
     """Stream `oc rsync` output into the job log; fail on non-zero exit."""
     # Without a local rsync binary (e.g. Windows) oc falls back to tar, which needs the target dir to exist.
-    res = _oc(["exec", LOADER_POD, "-n", req.namespace, "--", "mkdir", "-p", f"{MOUNT}/{req.model_dir}"])
+    res = _oc(["exec", LOADER_POD, "-n", req.namespace, "--", "mkdir", "-p", tmp])
     if res.returncode != 0:
         _log(job, res.stderr)
         diag = _oc(["exec", LOADER_POD, "-n", req.namespace, "--", "sh", "-c", f"id; ls -ldn {MOUNT}"])
@@ -352,9 +357,9 @@ def _rsync(job: dict, req: DeployRequest) -> None:
               "Valitse 'Aja apupodi rootina' (vaatii anyuid-oikeuden, esim. cluster-admin) ja yritä uudelleen.")
     job["copy_total"] = _local_size(settings.MODELS_DIR / req.model_dir)
     stop = threading.Event()
-    threading.Thread(target=_poll_copied, args=(job, req, stop), daemon=True).start()
-    args = [_oc_bin(), "rsync", f"{req.model_dir}/", f"{LOADER_POD}:{MOUNT}/{req.model_dir}/",
-            "-n", req.namespace, "--exclude=.cache"]
+    threading.Thread(target=_poll_copied, args=(job, req, tmp, stop), daemon=True).start()
+    args = [_oc_bin(), "rsync", f"{req.model_dir}/", f"{LOADER_POD}:{tmp}/",
+            "-n", req.namespace, "--exclude=.cache", f"--exclude={rt.MANIFEST}"]
     try:
         proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                 env=_env(), cwd=str(settings.MODELS_DIR))
@@ -368,9 +373,8 @@ def _rsync(job: dict, req: DeployRequest) -> None:
     job["copy_done"] = job["copy_total"]
 
 
-def _poll_copied(job: dict, req: DeployRequest, stop: threading.Event) -> None:
+def _poll_copied(job: dict, req: DeployRequest, target: str, stop: threading.Event) -> None:
     """Background thread: every few seconds measure how many bytes have reached the PVC."""
-    target = f"{MOUNT}/{req.model_dir}"
     while not stop.wait(4):
         try:
             res = _oc(["exec", LOADER_POD, "-n", req.namespace, "--", "du", "-sb", "--exclude=.cache", target],
@@ -389,6 +393,46 @@ def _set(job: dict, idx: int, state: str) -> None:
     elif state in ("done", "error"):
         step["ended_at"] = time.time()
     step["state"] = state
+
+
+_FINALIZE = r'''set -e
+tmp="$1"; final="$2"; rtm="$3"; ow="$4"
+rm -f "$tmp/.model-hub.json"
+if [ "$rtm" = ovms ]; then
+  mkdir -p "$final"
+  v=0
+  for d in "$final"/*/; do
+    n=$(basename "$d")
+    case "$n" in ""|*[!0-9]*) ;; *) if [ "$n" -gt "$v" ]; then v=$n; fi ;; esac
+  done
+  v=$((v+1))
+  mv "$tmp/1" "$final/$v"
+  for f in config.json preprocessor_config.json; do
+    if [ -f "$tmp/$f" ]; then cp -f "$tmp/$f" "$final/$f"; fi
+  done
+  rm -rf "$tmp"
+  echo "version=$v"
+else
+  if [ -e "$final" ]; then
+    if [ "$ow" != 1 ]; then exit 42; fi
+    rm -rf "$final"
+  fi
+  mv "$tmp" "$final"
+fi
+'''
+
+
+def _check_free(job: dict, ns: str, need: int) -> None:
+    """Fail when the PVC has less free space than the model needs."""
+    res = _oc(["exec", LOADER_POD, "-n", ns, "--", "df", "-P", "-B1", MOUNT])
+    try:
+        free = int(res.stdout.strip().splitlines()[-1].split()[3])
+    except (IndexError, ValueError):
+        _log(job, "Huom: PVC:n vapaata tilaa ei voitu lukea; tarkistus ohitetaan.")
+        return
+    if free < need:
+        _fail(f"PVC:llä ei ole tarpeeksi tilaa: tarvitaan {need / 1073741824:.1f} GiB, "
+              f"vapaana {free / 1073741824:.1f} GiB. Käytä isompaa PVC:tä.")
 
 
 def _run_deploy(job: dict, req: DeployRequest) -> None:
@@ -447,32 +491,52 @@ def _run_deploy(job: dict, req: DeployRequest) -> None:
 
         idx = 3
         _set(job, 3, "running")
-        _rsync(job, req)
+        local_dir = settings.MODELS_DIR / req.model_dir
+        runtime = rt.read_manifest(local_dir)["runtime"]
+        final, tmp = f"{MOUNT}/{req.model_dir}", f"{MOUNT}/.tmp-{job['id']}"
+        _oc(["exec", LOADER_POD, "-n", ns, "--", "sh", "-c", f"rm -rf {MOUNT}/.tmp-*"])  # stale temp folders
+        if runtime == "vllm" and not req.overwrite and _oc(
+                ["exec", LOADER_POD, "-n", ns, "--", "test", "-e", final]).returncode == 0:
+            _fail(f"Kansio {req.model_dir} on jo PVC:llä (vLLM ei tue versiokansioita). "
+                  "Valitse 'Korvaa olemassa oleva malli' vahvistaaksesi ylikirjoituksen.")
+        _check_free(job, ns, _local_size(local_dir))
+        _rsync(job, req, tmp)
         _set(job, 3, "done")
 
         idx = 4
         _set(job, 4, "running")
-        target = f"{MOUNT}/{req.model_dir}"
-        # oc's tar fallback (no local rsync) nests files under <target>/<model_dir>/; flatten if so.
+        marker = "config.json" if runtime == "vllm" else rt.LOCAL_VERSION
+        # oc's tar fallback (no local rsync) nests files under <tmp>/<model_dir>/; flatten if so.
         flat = _oc(["exec", LOADER_POD, "-n", ns, "--", "sh", "-c",
-                    'cd "$1" && if [ ! -f config.json ] && [ -f "$2/config.json" ]; then '
+                    'cd "$1" && if [ ! -e "$3" ] && [ -e "$2/$3" ]; then '
                     'cp -a "$2"/. . && rm -rf "$2" && echo flattened; fi',
-                    "_", target, req.model_dir])
+                    "_", tmp, req.model_dir, marker])
         _log(job, flat.stdout + flat.stderr)
         if flat.returncode != 0:
             _fail("Kansiorakenteen korjaus PVC:llä epäonnistui.")
-        _check(job, _oc(["exec", LOADER_POD, "-n", ns, "--", "test", "-f", f"{target}/config.json"]),
-               "config.json puuttuu PVC:ltä.")
-        res = _oc(["exec", LOADER_POD, "-n", ns, "--", "du", "-sb", "--exclude=.cache", target])
+        _check(job, _oc(["exec", LOADER_POD, "-n", ns, "--", "test", "-e", f"{tmp}/{marker}"]),
+               "Mallin tiedostot puuttuvat PVC:ltä.")
+        res = _oc(["exec", LOADER_POD, "-n", ns, "--", "du", "-sb", "--exclude=.cache", tmp])
         _check(job, res, "Koon tarkistus epäonnistui.")
-        # Make files readable for the (random-UID) model server pod; failure is not fatal.
-        _log(job, _oc(["exec", LOADER_POD, "-n", ns, "--", "chmod", "-R", "a+rX", target]).stderr)
-        remote = int(res.stdout.split()[0])
-        local = _local_size(settings.MODELS_DIR / req.model_dir)
+        remote, local = int(res.stdout.split()[0]), _local_size(local_dir)
         if remote < local:
             _fail(f"PVC:llä on vähemmän dataa kuin paikallisesti ({remote} < {local} tavua).")
+        # Only now, with every file in place, touch the deployment path (single mv per model/version).
+        done = _oc(["exec", LOADER_POD, "-n", ns, "--", "sh", "-c", _FINALIZE, "_",
+                    tmp, final, runtime, "1" if req.overwrite else "0"])
+        _log(job, done.stderr)
+        if done.returncode != 0:
+            _fail("Mallin siirto paikalleen epäonnistui." if done.returncode != 42 else
+                  f"Kansio {req.model_dir} on jo PVC:llä. Valitse 'Korvaa olemassa oleva malli'.")
+        version = next((ln.split("=", 1)[1] for ln in done.stdout.splitlines() if ln.startswith("version=")), "")
+        # Make files readable for the (random-UID) model server pod; failure is not fatal.
+        _log(job, _oc(["exec", LOADER_POD, "-n", ns, "--", "chmod", "-R", "a+rX", final]).stderr)
         _set(job, 4, "done")
-        job["result"] = {"namespace": ns, "pvc": req.pvc_name, "model_path": req.model_dir}
+        job["result"] = {
+            "namespace": ns, "pvc": req.pvc_name, "model_path": req.model_dir, "runtime": runtime,
+            "version": version or None, "pvc_uri": f"pvc://{req.pvc_name}/{req.model_dir}",
+            "size_bytes": local, "serving_runtime": rt.SERVING_NAMES[runtime],
+        }
         failed = False
     except subprocess.TimeoutExpired:
         job["message"] = "Komento aikakatkaistiin."
@@ -484,6 +548,8 @@ def _run_deploy(job: dict, req: DeployRequest) -> None:
     # Cleanup always runs; the final state is set only after it so the UI never sees a half-finished job.
     try:
         _set(job, 5, "running")
+        if failed:  # an interrupted copy must not leave a half model behind
+            _oc(["exec", LOADER_POD, "-n", ns, "--", "sh", "-c", f"rm -rf {MOUNT}/.tmp-*"], timeout=120)
         _oc(["delete", "pod", LOADER_POD, "-n", ns, "--ignore-not-found", "--wait=false"], timeout=60)
         _set(job, 5, "done")
     except Exception:  # noqa: BLE001

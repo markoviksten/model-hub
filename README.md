@@ -34,6 +34,19 @@ Vaalea ja tumma teema (vaihto ylärivin napista).
 
 UI on rakennettu IBM Carbon Design Systemillä (`static/carbon.css`, IBM Plex -fontit `static/fonts/`; ei ulkoisia riippuvuuksia, toimii offline). Edistymispalkeissa näkyy kulunut aika, nopeus ja arvio jäljellä olevasta ajasta; deploy-vaiheilla on omat kestonsa.
 
+## Runtime-rakenne (OpenShift AI, KServe)
+
+Lataus rakentaa mallikansion valmiiksi sen runtimen odottamaan muotoon. Polku OpenShift AI:ssa on `pvc://<pvc>/<malli>`.
+
+- **Runtime**: `auto` (oletus) | `vllm` | `ovms`. `auto` lukee repon tiedostolistan ja `config.json`:n `architectures`-kentän ennen latausta ja näyttää päätelmän. `*ForCausalLM`/`*ForConditionalGeneration` + `*.safetensors` -> vLLM; `*.onnx` tai OpenVINO IR (`.xml` + `.bin`) -> OVMS; muuten virhe, jossa pyydetään valitsemaan runtime.
+- **vLLM** (`<malli>/`, ei versiokansiota): vain `config.json`, `generation_config.json`, `tokenizer*`, `special_tokens_map.json`, `*.safetensors`, `*.safetensors.index.json`, `chat_template*`, `preprocessor_config.json`, `processor_config.json`. Ei `original/`, `onnx/`, `*.gguf`, `*.pth`, `pytorch_model*.bin`.
+- **OVMS** (`<malli>/<versio>/`): yksi variantti (oletus `onnx/model.onnx`) nimellä `model.onnx`, mahdollinen `*.onnx_data` samaan kansioon; OpenVINO IR nimillä `model.xml` + `model.bin`. `config.json` ja `preprocessor_config.json` mallikansion juureen. Versio on kokonaisluku; uusi siirto saman mallin päälle luo seuraavan vapaan numeron PVC:llä.
+- **Turvallisuus**: lataus menee ensin väliaikaiseen kansioon (`.tmp-*`), lopulliseen polkuun siirretään vasta kun kaikki tiedostot ovat perillä. PVC:lle kopiointi tehdään samoin (`/mnt/models/.tmp-*` -> mv). Keskeytys ei jätä puolikasta mallia.
+- **Tarkistukset**: repon koko (`model_info(files_metadata=True)`) vs. vapaa levytila ennen latausta ja vapaa tila PVC:llä ennen kopiointia.
+- **Ylikirjoitus**: vLLM:llä olemassa oleva kansio vaatii vahvistuksen (`overwrite`, UI:ssa vahvistusikkuna / valintaruutu PVC-kopioinnissa).
+- **Token**: kenttä UI:ssa, tai ympäristömuuttuja `HF_TOKEN` kontille.
+- Huom: 10 GiB PVC ei riitä 8B-LLM:lle (fp16 ~16 GB). OVMS voi palvella OpenVINO-muunnettuja LLM:iä, mutta tarvitsee oman graph-konfiguraation, joten LLM:t ohjataan vLLM:ään.
+
 ## Yhdistetty kone
 ```powershell
 pip install -r requirements-online.txt

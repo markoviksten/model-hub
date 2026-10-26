@@ -2,12 +2,14 @@
 
 import asyncio
 import concurrent.futures
+import json
 import logging
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -17,6 +19,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
+import runtime as rt
 import settings
 
 try:
@@ -52,7 +55,10 @@ class DownloadRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     repo_id: str = Field(..., max_length=200)
-    token: Optional[str] = Field(default=None, max_length=200, repr=False)
+    token: Optional[str] = Field(default=None, max_length=200, repr=False)  # falls back to env HF_TOKEN
+    runtime: Literal["auto", "vllm", "ovms"] = "auto"
+    variant: str = Field(default=rt.DEFAULT_VARIANT, max_length=200, pattern=r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+    overwrite: bool = False
 
 
 class JobStatus(BaseModel):
@@ -66,6 +72,9 @@ class JobStatus(BaseModel):
     path: Optional[str] = None
     message: Optional[str] = None
     elapsed_s: Optional[float] = None
+    runtime: Optional[str] = None
+    reason: Optional[str] = None
+    files: list[str] = []
 
 
 def _dir_size(path: Path) -> int:
@@ -90,11 +99,11 @@ def _safe_error(exc: Exception) -> str:
 
 
 _CHILD_CODE = (
-    "import sys\n"
+    "import sys, json\n"
     "from huggingface_hub import snapshot_download\n"
     "from huggingface_hub.errors import GatedRepoError, RepositoryNotFoundError\n"
     "try:\n"
-    "    snapshot_download(repo_id=sys.argv[1], local_dir=sys.argv[2])\n"
+    "    snapshot_download(repo_id=sys.argv[1], local_dir=sys.argv[2], allow_patterns=json.load(sys.stdin))\n"
     "except GatedRepoError:\n"
     "    sys.exit(3)\n"
     "except RepositoryNotFoundError:\n"
@@ -106,35 +115,42 @@ _EXIT_MESSAGES = {
 }
 
 
-def _cleanup_partial(target: Path, preexisting: bool) -> None:
-    """Remove files left by an interrupted download (whole folder if it did not exist before)."""
-    if not preexisting:
-        shutil.rmtree(target, ignore_errors=True)
-        return
-    for part in target.rglob("*.incomplete"):
-        part.unlink(missing_ok=True)
-    shutil.rmtree(target / ".cache" / "huggingface" / "download", ignore_errors=True)
+def _finish(job: dict, req: DownloadRequest, plan: rt.Plan, tmp: Path, final: Path) -> None:
+    """Move the downloaded files into the runtime layout and swap it in place of the old folder."""
+    missing = [f for f in plan.files if not (tmp / f).is_file()]
+    if missing:
+        raise RuntimeError("Lataus jäi vajaaksi (tiedostoja puuttuu).")
+    out = tmp.with_name(tmp.name + "-out")
+    shutil.rmtree(out, ignore_errors=True)
+    rt.build_layout(tmp, out, plan)
+    rt.write_manifest(out, {"runtime": plan.runtime, "repo_id": req.repo_id, "format": plan.fmt,
+                            "variant": plan.variant})
+    if final.exists():  # overwrite was confirmed in start_download
+        shutil.rmtree(final)
+    out.rename(final)
+    shutil.rmtree(tmp, ignore_errors=True)
 
 
-def _run_job(job: dict, req: DownloadRequest, target: Path) -> None:
-    """Worker thread: run the download in a child process (so it can be cancelled), then set the final state."""
+def _run_job(job: dict, req: DownloadRequest, plan: rt.Plan, tmp: Path, final: Path) -> None:
+    """Worker: download only the planned files into a temp folder in a child process (cancellable),
+    then build the final layout. A failed or cancelled download leaves nothing in the final path."""
     env = {**os.environ, "HF_HUB_DISABLE_PROGRESS_BARS": "1"}
     if req.token:
         env["HF_TOKEN"] = req.token  # via env, never argv
     try:
-        proc = subprocess.Popen(
-            [sys.executable, "-c", _CHILD_CODE, req.repo_id, str(target)], env=env
-        )
+        proc = subprocess.Popen([sys.executable, "-c", _CHILD_CODE, req.repo_id, str(tmp)],
+                                stdin=subprocess.PIPE, env=env)
         job["proc"] = proc
         if job["cancel"]:  # cancelled before the process handle was stored
             proc.terminate()
-        rc = proc.wait()
+        proc.communicate(json.dumps(plan.files).encode())
+        rc = proc.returncode
         if job["cancel"]:
-            _cleanup_partial(target, job["preexisting"])
             job["message"] = "Lataus keskeytetty, keskeneräiset tiedostot poistettu."
             job["state"] = "cancelled"
         elif rc == 0:
-            job["path"] = str(target)
+            _finish(job, req, plan, tmp, final)
+            job["path"] = str(final)
             job["message"] = None
             job["state"] = "done"
         else:
@@ -148,6 +164,10 @@ def _run_job(job: dict, req: DownloadRequest, target: Path) -> None:
     finally:
         job["proc"] = None
         job["ended_at"] = time.time()
+        if job["state"] != "done":
+            shutil.rmtree(tmp, ignore_errors=True)
+            shutil.rmtree(tmp.with_name(tmp.name + "-out"), ignore_errors=True)
+
 
 def _to_status(job: dict) -> JobStatus:
     """Build a JobStatus, refreshing downloaded bytes from disk while running."""
@@ -155,7 +175,7 @@ def _to_status(job: dict) -> JobStatus:
         job["downloaded_bytes"] = _dir_size(Path(job["target"]))
     elif job["state"] == "done":
         job["downloaded_bytes"] = max(job["downloaded_bytes"], job["total_bytes"])
-    public = {k: v for k, v in job.items() if k not in ("target", "started_at", "ended_at", "proc", "cancel", "preexisting")}
+    public = {k: v for k, v in job.items() if k not in ("target", "started_at", "ended_at", "proc", "cancel")}
     return JobStatus(**public, elapsed_s=settings.elapsed(job["started_at"], job["ended_at"]))
 
 
@@ -227,47 +247,63 @@ async def search_models(
     return SearchPage(items=items, page=page, page_size=SEARCH_PAGE_SIZE, has_next=has_next)
 
 
+def _plan_for(req: DownloadRequest) -> tuple[rt.Plan, int]:
+    """Read the repo file list (+ config.json architectures), build the plan and return it with its size."""
+    info = HfApi().model_info(req.repo_id, files_metadata=True, token=req.token or None)
+    sizes = {s.rfilename: (s.size or 0) for s in (info.siblings or [])}
+    archs = list((getattr(info, "config", None) or {}).get("architectures") or [])
+    if not archs and "config.json" in sizes and req.runtime == "auto":
+        from huggingface_hub import hf_hub_download  # config.json is tiny; read it only for detection
+        with tempfile.TemporaryDirectory() as d:
+            cfg = hf_hub_download(req.repo_id, "config.json", local_dir=d, token=req.token or None)
+            archs = list(json.loads(Path(cfg).read_text(encoding="utf-8")).get("architectures") or [])
+    plan = rt.make_plan(list(sizes), archs, req.runtime, req.variant)
+    return plan, sum(sizes[f] for f in plan.files)
+
+
 @router.post("/downloads", response_model=JobStatus, status_code=202)
 async def start_download(req: DownloadRequest) -> JobStatus:
-    """Start a background download of a Hugging Face repo."""
+    """Choose the runtime layout, check repo size and free space, then start a background download."""
     if not ENABLED:
         raise HTTPException(503, "Lataus on pois käytöstä (offline-tila tai huggingface_hub puuttuu).")
     if not REPO_ID_RE.match(req.repo_id):
         raise HTTPException(422, "repo_id muodossa 'organisaatio/malli'.")
     try:
-        info = await asyncio.to_thread(
-            HfApi().model_info, req.repo_id, files_metadata=True, token=req.token or None
-        )
+        plan, total = await asyncio.to_thread(_plan_for, req)
+    except rt.PlanError as exc:
+        raise HTTPException(422, str(exc)) from None
     except Exception as exc:  # noqa: BLE001
         log.exception("model_info failed for %s", req.repo_id)
         raise HTTPException(404, _safe_error(exc)) from None
-    total = sum((s.size or 0) for s in (info.siblings or []))
-    target = (settings.MODELS_DIR / req.repo_id.split("/")[1]).resolve()
-    if settings.MODELS_DIR not in target.parents:
+    final = (settings.MODELS_DIR / req.repo_id.split("/")[1]).resolve()
+    if settings.MODELS_DIR not in final.parents:
         raise HTTPException(422, "Virheellinen repo_id.")
-    need = total - _dir_size(target)
+    if final.exists() and not req.overwrite:
+        raise HTTPException(409, f"Kansio {final.name} on jo olemassa. Vahvista ylikirjoitus (overwrite).")
     free = settings.disk_free()
-    if need > free:
+    if total > free:
         raise HTTPException(
-            507, f"Levytila ei riitä: tarvitaan noin {need / 1e9:.1f} GB, vapaana {free / 1e9:.1f} GB. "
+            507, f"Levytila ei riitä: tarvitaan noin {total / 1e9:.1f} GB, vapaana {free / 1e9:.1f} GB. "
                  "Poista malleja tai kasvata levytilaa."
         )
     with _lock:
         if any(j["state"] == "running" for j in _jobs.values()):
             raise HTTPException(409, "Toinen lataus on jo käynnissä.")
-        preexisting = target.exists()
-        target.mkdir(parents=True, exist_ok=True)
+        for stale in settings.MODELS_DIR.glob(".tmp-*"):  # leftovers of a crashed download
+            shutil.rmtree(stale, ignore_errors=True)
         job_id = uuid.uuid4().hex[:12]
+        tmp = settings.MODELS_DIR / f".tmp-{job_id}"
+        tmp.mkdir(parents=True)
         _jobs[job_id] = {
             "id": job_id, "repo_id": req.repo_id, "state": "running",
             "downloaded_bytes": 0, "total_bytes": total, "path": None,
-            "message": None, "target": str(target),
-            "proc": None, "cancel": False, "preexisting": preexisting,
+            "message": None, "target": str(tmp), "proc": None, "cancel": False,
+            "runtime": plan.runtime, "reason": plan.reason, "files": plan.files[:50],
             "started_at": time.time(), "ended_at": None,
         }
         for old in list(_jobs)[:-MAX_JOBS_KEPT]:
             _jobs.pop(old, None)
-        threading.Thread(target=_run_job, args=(_jobs[job_id], req, target), daemon=True).start()
+        threading.Thread(target=_run_job, args=(_jobs[job_id], req, plan, tmp, final), daemon=True).start()
         return _to_status(_jobs[job_id])
 
 

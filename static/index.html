@@ -157,6 +157,15 @@
       <input class="cds--text-input" type="text" id="repo" autocomplete="off" placeholder="RedHatAI/Qwen2-0.5B-Instruct-FP8"></div>
     <div class="cds--form-item"><label class="cds--label" for="hfToken">HF-token (valinnainen, vain gated-malleille)</label>
       <input class="cds--text-input" type="password" id="hfToken" autocomplete="off"></div>
+    <div class="row">
+      <div class="cds--form-item"><label class="cds--label" for="rtm">Runtime</label>
+        <select class="cds--select-input" id="rtm" aria-label="Runtime">
+          <option value="auto">auto (päätellään repon tiedostoista)</option>
+          <option value="vllm">vllm (LLM, safetensors)</option>
+          <option value="ovms">ovms (ONNX / OpenVINO)</option></select></div>
+      <div class="cds--form-item"><label class="cds--label" for="variant">ONNX-variantti (vain ovms)</label>
+        <input class="cds--text-input" type="text" id="variant" autocomplete="off" value="onnx/model.onnx"></div>
+    </div>
     <button class="cds--btn cds--btn--primary" id="dl">Lataa</button>
     <div id="dlStatus" class="jobbox"></div>
   </div>
@@ -271,6 +280,8 @@ docker images | grep model-hub                      # näyttää model-hub:airga
       <label class="cds--checkbox-label" for="mkns"><span class="cds--checkbox-label-text">Luo projekti, jos sitä ei ole</span></label></div>
     <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="root">
       <label class="cds--checkbox-label" for="root"><span class="cds--checkbox-label-text">Aja apupodi rootina (vain jos kirjoitus PVC:lle epäonnistuu "Permission denied"; vaatii anyuid-oikeuden)</span></label></div>
+    <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="ovw">
+      <label class="cds--checkbox-label" for="ovw"><span class="cds--checkbox-label-text">Korvaa olemassa oleva malli PVC:llä (vLLM; OVMS luo aina uuden version)</span></label></div>
     <button class="cds--btn cds--btn--primary" id="go">Kopioi malli PVC:lle</button>
     <button class="cds--btn cds--btn--ghost" id="clearDeploy">Tyhjennä</button>
   </div>
@@ -414,13 +425,19 @@ function clearSearch() {
   searchState = { q: "", sort: "downloads", page: 0 };
 }
 
-async function startDownload(repo) {
-  const body = { repo_id: repo };
+async function startDownload(repo, overwrite) {
+  const body = { repo_id: repo, runtime: $("rtm").value, variant: $("variant").value.trim() || "onnx/model.onnx" };
+  if (overwrite) body.overwrite = true;
   if ($("hfToken").value) body.token = $("hfToken").value;
   try {
     const j = await post("/api/downloads", body);
     poll("dl", "/api/downloads/" + j.id, renderDownload, () => { loadModels(); loadStorage(); });
-  } catch (e) { $("dlStatus").innerHTML = notify("error", e.message); }
+  } catch (e) {
+    if (!overwrite && e.message.includes("(overwrite)") && confirm(e.message.replace(" Vahvista ylikirjoitus (overwrite).", "") + "\nKorvataanko olemassa oleva kansio?")) {
+      return startDownload(repo, true);
+    }
+    $("dlStatus").innerHTML = notify("error", e.message);
+  }
 }
 
 /** Ask the server to stop the running download and delete its partial files. */
@@ -433,19 +450,20 @@ async function cancelDownload(id) {
 function renderDownload(s) {
   const title = esc(s.repo_id);
   const speed = s.elapsed_s > 1 ? s.downloaded_bytes / s.elapsed_s : 0;
+  const rtInfo = s.runtime ? `<div class="muted">Runtime: <b>${esc(s.runtime)}</b> &middot; ${esc(s.reason)}<br>Tiedostot: ${s.files.map(esc).join(", ")}</div>` : "";
   const meta = `<div class="meta"><span>Kulunut: <b>${fmtT(s.elapsed_s)}</b></span>`;
   if (s.state === "running") {
     const pct = s.total_bytes ? Math.round(100 * s.downloaded_bytes / s.total_bytes) : 0;
     const left = eta(s.downloaded_bytes, s.total_bytes, s.elapsed_s);
     $("dlStatus").innerHTML = bar(title, pct, `${gb(s.downloaded_bytes)} / ${gb(s.total_bytes)} (${pct}%)`)
       + meta + `<span>Nopeus: <b>${speed ? gb(speed) + "/s" : "–"}</b></span><span>Arvio jäljellä: <b>${fmtT(left)}</b></span></div>`
-      + `<button class="cds--btn cds--btn--danger--tertiary cds--btn--sm" id="cancelDl" style="margin-top:.5rem">Keskeytä lataus</button>`;
+      + rtInfo + `<button class="cds--btn cds--btn--danger--tertiary cds--btn--sm" id="cancelDl" style="margin-top:.5rem">Keskeytä lataus</button>`;
     $("cancelDl").onclick = () => cancelDownload(s.id);
   } else if (s.state === "cancelled") {
     $("dlStatus").innerHTML = notify("info", `${s.repo_id}: ${s.message}`);
   } else if (s.state === "done") {
     $("dlStatus").innerHTML = bar(title, 100, "Valmis", "finished") + meta + "</div>"
-      + `<div class="muted">Kansio: <code>${esc(s.path)}</code></div>`;
+      + rtInfo + `<div class="muted">Kansio: <code>${esc(s.path)}</code></div>`;
   } else {
     $("dlStatus").innerHTML = bar(title, 0, esc(s.message || "Virhe"), "error") + meta + "</div>";
   }
@@ -510,7 +528,7 @@ async function loadModels() {
   models = d.models;
   $("modelsDir").textContent = "Kansio: " + d.dir;
   $("model").innerHTML = models.length
-    ? models.map(m => `<option value="${esc(m.name)}">${esc(m.name)} (${gb(m.size_bytes)})</option>`).join("")
+    ? models.map(m => `<option value="${esc(m.name)}">${esc(m.name)} (${esc(m.runtime)}, ${gb(m.size_bytes)})</option>`).join("")
     : `<option value="">Ei malleja (hae tai tuo malli ensin)</option>`;
   suggestSize();
 }
@@ -555,7 +573,7 @@ $("go").onclick = async () => {
   const body = {
     model_dir: $("model").value, namespace: $("ns").value.trim(), pvc_name: $("pvc").value.trim(),
     pvc_size_gi: parseInt($("size").value, 10), loader_image: $("img").value.trim(),
-    create_namespace: $("mkns").checked, run_as_root: $("root").checked,
+    create_namespace: $("mkns").checked, run_as_root: $("root").checked, overwrite: $("ovw").checked,
   };
   if ($("sc").value.trim()) body.storage_class = $("sc").value.trim();
   try {
@@ -574,20 +592,27 @@ function clearDeploy() {
   for (const id of ["copyBar", "steps", "msg", "next"]) $(id).innerHTML = "";
   $("log").textContent = "";
   $("ns").value = ""; $("sc").value = ""; $("pvc").value = "model-storage";
-  $("mkns").checked = false; $("root").checked = false;
+  $("mkns").checked = false; $("root").checked = false; $("ovw").checked = false;
   $("img").value = info.loader_image || "";
   suggestSize();
 }
 $("clearDeploy").onclick = clearDeploy;
 
 function showNext(r) {
+  const ovms = r.runtime === "ovms";
   $("next").innerHTML = `
     <strong>Malli on PVC:llä. Tee seuraavaksi deployment OpenShift AI:ssa:</strong>
+    <ul class="next">
+      <li>Runtime: <strong>${esc(r.runtime)}</strong>${r.version ? ` (versio <code>${esc(r.version)}</code>)` : ""}</li>
+      <li>Polku: <code>${esc(r.pvc_uri)}</code> &middot; koko ${gb(r.size_bytes)}</li>
+      <li>Serving runtime: <strong>${esc(r.serving_runtime)}</strong></li>
+    </ul>
     <ol class="next">
       <li><strong>Models → Deploy model</strong> projektissa <code>${esc(r.namespace)}</code></li>
       <li>Model location: <strong>Cluster storage</strong> → <code>${esc(r.pvc)}</code>, Model path: <code>${esc(r.model_path)}</code></li>
-      <li>Serving runtime: <strong>vLLM NVIDIA GPU ServingRuntime for KServe</strong> (versio, joka tukee mallia)</li>
-      <li>Hardware profile: 1 GPU. Runtime-argumentti esim. <code>--max-model-len=4096</code>, ympäristömuuttuja <code>HF_HUB_OFFLINE=1</code></li>
+      <li>Serving runtime: <strong>${esc(r.serving_runtime)}</strong></li>
+      ${ovms ? "<li>Hardware profile: CPU riittää. OVMS lukee uusimman versiokansion (<code>1/</code>, <code>2/</code> ...)</li>"
+             : "<li>Hardware profile: 1 GPU. Runtime-argumentti esim. <code>--max-model-len=4096</code>, ympäristömuuttuja <code>HF_HUB_OFFLINE=1</code></li>"}
       <li>Valitse <strong>Require token authentication</strong> ja tarvittaessa external route</li>
       <li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v1/models -H "Authorization: Bearer &lt;token&gt;"</code></li>
       <li>Kirjaa muistiin malli-id (<code>/v1/models</code>) ja base URL (<code>https://&lt;endpoint&gt;/v1</code>) gateway-liitosta varten</li>
