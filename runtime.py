@@ -15,6 +15,10 @@ VLLM_PATTERNS = (
     "config.json", "generation_config.json", "tokenizer*", "special_tokens_map.json",
     "*.safetensors", "*.safetensors.index.json", "chat_template*",
     "preprocessor_config.json", "processor_config.json",
+    # tokenizer files that are not tokenizer* (BERT/RoBERTa/GPT-2 style, sentencepiece)
+    "vocab.*", "merges.txt", "added_tokens.json", "*.model",
+    # sentence-transformers (embedding models): pooling setup
+    "modules.json", "sentence_bert_config.json", "config_sentence_transformers.json", "*_Pooling/config.json",
 )
 OVMS_ROOT_FILES = ("config.json", "preprocessor_config.json")
 SERVING_NAMES = {
@@ -36,6 +40,7 @@ class Plan:
     layout: dict = field(default_factory=dict)  # repo file -> path inside the model folder
     variant: Optional[str] = None
     fmt: str = "safetensors"
+    embedding: bool = False  # vLLM needs a pooling runner (e.g. --task embed) instead of text generation
 
     @property
     def files(self) -> list[str]:
@@ -54,13 +59,17 @@ def detect_runtime(files: list[str], architectures: list[str]) -> tuple[str, str
         return "ovms", "repossa on *.onnx-tiedostoja -> OpenVINO Model Server"
     if has_ir:
         return "ovms", "repossa on OpenVINO IR (.xml + .bin) -> OpenVINO Model Server"
+    if any(a.endswith("Model") for a in architectures) and any(f.endswith(".safetensors") for f in files):
+        return "vllm", "embedding-tyyppinen malli (*Model-arkkitehtuuri + *.safetensors, ei ONNX/OpenVINO) -> vLLM"
     raise PlanError("Runtimea ei voitu päätellä (ei LLM-safetensorsia, ONNX- tai OpenVINO-tiedostoja). "
                     "Valitse runtime itse: vllm tai ovms.")
 
 
 def _vllm_files(files: list[str]) -> list[str]:
-    """Root-level files matching VLLM_PATTERNS (skips original/, onnx/, *.gguf, *.pth, pytorch_model*.bin)."""
-    return [f for f in files if "/" not in f and any(fnmatch.fnmatch(f, p) for p in VLLM_PATTERNS)]
+    """Files matching VLLM_PATTERNS: root-level for plain patterns, nested only for patterns with '/'
+    (skips original/, onnx/, *.gguf, *.pth, pytorch_model*.bin and nested weights)."""
+    return [f for f in files if any(
+        fnmatch.fnmatch(f, p) and (("/" in f) == ("/" in p)) for p in VLLM_PATTERNS)]
 
 
 def _ovms_layout(files: list[str], variant: str) -> tuple[dict, str, str]:
@@ -101,7 +110,7 @@ def _ovms_layout(files: list[str], variant: str) -> tuple[dict, str, str]:
 
 
 def make_plan(files: list[str], architectures: list[str], runtime: str = "auto",
-              variant: str = DEFAULT_VARIANT) -> Plan:
+              variant: str = DEFAULT_VARIANT, repo_id: str = "") -> Plan:
     """Decide runtime (when 'auto') and build the download plan; raises PlanError with a clear message."""
     if ".." in variant.split("/") or variant.startswith("/"):
         raise PlanError("Virheellinen variant.")
@@ -113,7 +122,10 @@ def make_plan(files: list[str], architectures: list[str], runtime: str = "auto",
         sel = _vllm_files(files)
         if "config.json" not in sel or not any(f.endswith(".safetensors") for f in sel):
             raise PlanError("vLLM tarvitsee repon juureen config.json:n ja *.safetensors-tiedostot.")
-        return Plan("vllm", reason, {f: f for f in sel})
+        embedding = ("modules.json" in files or "embed" in repo_id.lower()
+                     or (bool(architectures) and not any(a.endswith(CAUSAL_SUFFIXES) for a in architectures)
+                         and any(a.endswith("Model") for a in architectures)))
+        return Plan("vllm", reason, {f: f for f in sel}, embedding=embedding)
     layout, fmt, used = _ovms_layout(files, variant)
     return Plan("ovms", reason, layout, used, fmt)
 

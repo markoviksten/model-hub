@@ -612,7 +612,7 @@ function showNext(r) {
       <li>Model location: <strong>Cluster storage</strong> → <code>${esc(r.pvc)}</code>, Model path: <code>${esc(r.model_path)}</code></li>
       <li>Serving runtime: <strong>${esc(r.serving_runtime)}</strong></li>
       ${ovms ? "<li>Hardware profile: CPU riittää. OVMS lukee uusimman versiokansion (<code>1/</code>, <code>2/</code> ...)</li>"
-             : "<li>Hardware profile: 1 GPU. Runtime-argumentti esim. <code>--max-model-len=4096</code>, ympäristömuuttuja <code>HF_HUB_OFFLINE=1</code></li>"}
+             : (r.embedding ? "<li><strong>Embedding-malli:</strong> lisää vLLM-argumentti <code>--task=embed</code> (uudemmissa versioissa <code>--runner=pooling</code>); endpoint on <code>/v1/embeddings</code></li>" : "") + "<li>Hardware profile: 1 GPU. Runtime-argumentti esim. <code>--max-model-len=4096</code>, ympäristömuuttuja <code>HF_HUB_OFFLINE=1</code></li>"}
       <li>Valitse <strong>Require token authentication</strong> ja tarvittaessa external route</li>
       <li>Odota tilaa <strong>Started</strong> ja testaa: <code>curl -k https://&lt;endpoint&gt;/v1/models -H "Authorization: Bearer &lt;token&gt;"</code></li>
       <li>Kirjaa muistiin malli-id (<code>/v1/models</code>) ja base URL (<code>https://&lt;endpoint&gt;/v1</code>) gateway-liitosta varten</li>

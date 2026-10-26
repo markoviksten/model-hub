@@ -535,6 +535,7 @@ def _run_deploy(job: dict, req: DeployRequest) -> None:
         job["result"] = {
             "namespace": ns, "pvc": req.pvc_name, "model_path": req.model_dir, "runtime": runtime,
             "version": version or None, "pvc_uri": f"pvc://{req.pvc_name}/{req.model_dir}",
+            "embedding": bool(rt.read_manifest(local_dir).get("embedding")),
             "size_bytes": local, "serving_runtime": rt.SERVING_NAMES[runtime],
         }
         failed = False

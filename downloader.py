@@ -124,7 +124,7 @@ def _finish(job: dict, req: DownloadRequest, plan: rt.Plan, tmp: Path, final: Pa
     shutil.rmtree(out, ignore_errors=True)
     rt.build_layout(tmp, out, plan)
     rt.write_manifest(out, {"runtime": plan.runtime, "repo_id": req.repo_id, "format": plan.fmt,
-                            "variant": plan.variant})
+                            "variant": plan.variant, "embedding": plan.embedding})
     if final.exists():  # overwrite was confirmed in start_download
         shutil.rmtree(final)
     out.rename(final)
@@ -257,7 +257,7 @@ def _plan_for(req: DownloadRequest) -> tuple[rt.Plan, int]:
         with tempfile.TemporaryDirectory() as d:
             cfg = hf_hub_download(req.repo_id, "config.json", local_dir=d, token=req.token or None)
             archs = list(json.loads(Path(cfg).read_text(encoding="utf-8")).get("architectures") or [])
-    plan = rt.make_plan(list(sizes), archs, req.runtime, req.variant)
+    plan = rt.make_plan(list(sizes), archs, req.runtime, req.variant, req.repo_id)
     return plan, sum(sizes[f] for f in plan.files)
 
 
