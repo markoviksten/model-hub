@@ -204,8 +204,8 @@ def _to_bytes(qty: str) -> int:
     return int(float(m.group(1)) * base ** exp)
 
 
-def _pods_using_pvc(ns: str, pvc: str) -> list[str]:
-    """Names of active pods (other than the loader pod) that mount the PVC."""
+def _pods_using_pvc(ns: str, pvc: str) -> list[dict]:
+    """Active pods (other than the loader pod) that mount the PVC, as {"name", "node"}."""
     res = _oc(["get", "pods", "-n", ns, "-o", "json"], timeout=60)
     if res.returncode != 0:
         return []  # can't tell; the pod wait step will surface real problems
@@ -216,7 +216,7 @@ def _pods_using_pvc(ns: str, pvc: str) -> list[str]:
             continue
         for vol in pod["spec"].get("volumes", []):
             if vol.get("persistentVolumeClaim", {}).get("claimName") == pvc:
-                names.append(name)
+                names.append({"name": name, "node": pod["spec"].get("nodeName")})
     return names
 
 
@@ -299,8 +299,31 @@ def _pvc_manifest(req: DeployRequest) -> dict:
     }
 
 
-def _pod_manifest(req: DeployRequest) -> dict:
-    """Build the loader pod manifest (restricted-SCC compatible unless `run_as_root`)."""
+def _share_node(job: dict, pvc_name: str, modes: list[str], users: list[dict]) -> Optional[str]:
+    """Decide how the loader pod can share a PVC that a running pod (e.g. a model server) already uses.
+
+    RWX: no restriction. RWO: several pods may mount it only on the same node, so return that node.
+    RWOP: sharing is impossible, so fail.
+    """
+    names = ", ".join(u["name"] for u in users)
+    if "ReadWriteOncePod" in modes:
+        _fail(f"PVC {pvc_name} on ReadWriteOncePod-tilassa ja pod {names} käyttää sitä. "
+              "Sitä ei voi jakaa: käytä toista PVC:tä tai pysäytä pod hetkeksi.")
+    if "ReadWriteMany" in modes:
+        _log(job, f"PVC {pvc_name} on käytössä ({names}), mutta ReadWriteMany sallii jakamisen.")
+        return None
+    nodes = {u["node"] for u in users}
+    if None in nodes or len(nodes) != 1:
+        _fail(f"PVC {pvc_name} on käytössä ({names}), mutta podin nodea ei voitu päätellä. "
+              "Odota, että pod on käynnissä, ja yritä uudelleen.")
+    node = nodes.pop()
+    _log(job, f"PVC {pvc_name} on käytössä ({names}) eikä deploymenttia tarvitse pysäyttää: "
+              f"ReadWriteOnce sallii jakamisen samalla nodella, joten apupodi ajetaan nodella {node}.")
+    return node
+
+
+def _pod_manifest(req: DeployRequest, node: Optional[str] = None) -> dict:
+    """Build the loader pod manifest (restricted-SCC compatible unless `run_as_root`); `node` pins it to a node."""
     if req.run_as_root:
         # Root keeps default capabilities (incl. DAC_OVERRIDE) so it can write to storage owned by others.
         sec = {"allowPrivilegeEscalation": False, "runAsUser": 0,
@@ -313,6 +336,7 @@ def _pod_manifest(req: DeployRequest) -> dict:
         "metadata": {"name": LOADER_POD, "namespace": req.namespace},
         "spec": {
             "restartPolicy": "Never",
+            **({"nodeName": node} if node else {}),
             "containers": [{
                 "name": "loader", "image": req.loader_image,
                 "command": ["sleep", "infinity"],
@@ -438,6 +462,7 @@ def _check_free(job: dict, ns: str, need: int) -> None:
 def _run_deploy(job: dict, req: DeployRequest) -> None:
     """Worker thread: run all deploy steps, always remove the loader pod, then set the final state."""
     ns, idx, failed = req.namespace, 0, True
+    pin: Optional[str] = None  # node to run the loader pod on when the PVC is shared with a running pod
     try:
         _set(job, 0, "running")
         res = _oc(["get", "namespace", ns, "-o", "name"], timeout=60)
@@ -466,8 +491,7 @@ def _run_deploy(job: dict, req: DeployRequest) -> None:
             _oc(["label", "pvc", req.pvc_name, "-n", ns, f"{DASHBOARD_LABEL}=true", "--overwrite"])
             users = _pods_using_pvc(ns, req.pvc_name)
             if users:
-                _fail(f"PVC {req.pvc_name} on jo käytössä: {', '.join(users)}. "
-                      "Pysäytä se (esim. workbench) tai käytä toista PVC:n nimeä.")
+                pin = _share_node(job, req.pvc_name, pvc["spec"].get("accessModes") or [], users)
             have, need = _to_bytes(cap), _local_size(settings.MODELS_DIR / req.model_dir)
             if have and have < need * 1.05:
                 _fail(f"Olemassa oleva PVC on liian pieni ({cap}) mallille ({need / 1073741824:.1f} GiB). "
@@ -480,13 +504,14 @@ def _run_deploy(job: dict, req: DeployRequest) -> None:
         idx = 2
         _set(job, 2, "running")
         _oc(["delete", "pod", LOADER_POD, "-n", ns, "--ignore-not-found", "--wait=true"], timeout=120)
-        _check(job, _oc(["apply", "-f", "-"], input_text=json.dumps(_pod_manifest(req))), "Apupodin luonti epäonnistui.")
+        _check(job, _oc(["apply", "-f", "-"], input_text=json.dumps(_pod_manifest(req, pin))), "Apupodin luonti epäonnistui.")
         res = _oc(["wait", "--for=condition=Ready", f"pod/{LOADER_POD}", "-n", ns, "--timeout=600s"], timeout=660)
         if res.returncode != 0:
             _log(job, _oc(["get", "events", "-n", ns, "--field-selector", f"involvedObject.name={LOADER_POD}",
                            "-o", "custom-columns=REASON:.reason,MSG:.message", "--no-headers"]).stdout[-1500:])
             _fail("Apupod ei käynnistynyt. Tyypillisiä syitä: image ei haettavissa (air-gapped: peilattu image), "
-                  "PVC ei sido tai ei kiintiötä.")
+                  "PVC ei sido tai ei kiintiötä."
+              + (f" Apupodi yritettiin ajaa nodella {pin} (jaettu PVC); tarkista noden resurssit." if pin else ""))
         _set(job, 2, "done")
 
         idx = 3

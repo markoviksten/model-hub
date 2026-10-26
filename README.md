@@ -48,6 +48,11 @@ Lataus rakentaa mallikansion valmiiksi sen runtimen odottamaan muotoon. Polku Op
 - **Token**: kenttä UI:ssa, tai ympäristömuuttuja `HF_TOKEN` kontille.
 - Huom: 10 GiB PVC ei riitä 8B-LLM:lle (fp16 ~16 GB). OVMS voi palvella OpenVINO-muunnettuja LLM:iä, mutta tarvitsee oman graph-konfiguraation, joten LLM:t ohjataan vLLM:ään.
 
+## Model path ja jaettu PVC
+
+- Model path OpenShift AI:n deploy-lomakkeessa on mallikansion nimi (repon nimi ilman organisaatiota), esim. `navy-ships-ONNX`; URI on `pvc://<pvc>/<malli>`. Sovellus näyttää arvon jo ennen kopiointia (mallivalinnan alla) ja kopioitavina kenttinä kopioinnin jälkeen. OVMS:llä ei anneta versiokansiota.
+- Useita malleja samalle PVC:lle: jos PVC:tä käyttää jo pod (esim. mallipalvelin), deploymenttia ei tarvitse pysäyttää. ReadWriteOnce-PVC:n voi liittää useampaan podiin samalla nodella, joten apupodi ajetaan automaattisesti samalla nodella (`nodeName`). ReadWriteMany: ei rajoitusta. ReadWriteOncePod: jakaminen ei onnistu, käytä toista PVC:tä.
+
 ## Mallin testaus OpenShift AI:ssa
 
 Välilehdellä 2 on lataus `osai_model_test.ipynb` (tiedosto: `static/osai_model_test.ipynb`, myös `/static/osai_model_test.ipynb`). Lataa se, tuo se OpenShift AI -projektin workbenchiin (JupyterLab → Upload), aseta osiossa 1 `ENDPOINT` ja `MODEL_NAME`, aja osio 2 (diagnostiikka) ja sen jälkeen mallityypin osio: 3 ONNX/OpenVINO (OVMS), 4 LLM (vLLM), 5 embedding. Täydellinen ohje on sovelluksen välilehdellä 2.
