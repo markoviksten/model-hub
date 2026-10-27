@@ -70,9 +70,9 @@
   ol.next li { margin: .4rem 0; }
   .cds--header__name { margin-right: auto; }
   .cds--header { gap: .75rem; }
-  #helpBtn, #themeBtn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--cds-text-secondary, #525252); background: none; color: var(--cds-text-primary); font: italic 700 1rem/1 "IBM Plex Serif", Georgia, serif; cursor: pointer; padding: 0; }
-  #helpBtn:hover, #themeBtn:hover { background: var(--cds-layer-hover); }
-  #helpBtn:focus-visible, #themeBtn:focus-visible { outline: 2px solid var(--cds-focus, #0f62fe); outline-offset: 2px; }
+  #helpBtn, #themeBtn, #exportBtn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--cds-text-secondary, #525252); background: none; color: var(--cds-text-primary); font: italic 700 1rem/1 "IBM Plex Serif", Georgia, serif; cursor: pointer; padding: 0; }
+  #helpBtn:hover, #themeBtn:hover, #exportBtn:hover { background: var(--cds-layer-hover); }
+  #helpBtn:focus-visible, #themeBtn:focus-visible, #exportBtn:focus-visible { outline: 2px solid var(--cds-focus, #0f62fe); outline-offset: 2px; }
   dialog.dlg { width: min(60rem, 94vw); max-height: 88vh; padding: 0; border: 0; background: var(--cds-layer-01, #fff); color: var(--cds-text-primary); box-shadow: 0 2px 6px rgba(0,0,0,.3); }
   dialog.dlg::backdrop { background: rgba(22,22,22,.6); }
   dialog.dlg header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-bottom: 1px solid var(--cds-border-subtle); position: sticky; top: 0; background: inherit; }
@@ -87,11 +87,6 @@
   .dlgbody table { border-collapse: collapse; width: 100%; margin: .5rem 0; font-size: .8125rem; }
   .dlgbody th, .dlgbody td { text-align: left; vertical-align: top; padding: .375rem .625rem; border-bottom: 1px solid var(--cds-border-subtle); }
   .dlgbody th { background: var(--cds-layer-accent-01, #e0e0e0); }
-  details.exportbox { border: 1px solid var(--cds-border-subtle); background: var(--cds-layer-01, #f4f4f4); margin: 1.5rem 0 .5rem; font-size: .875rem; line-height: 1.5; }
-  details.exportbox > summary { cursor: pointer; padding: .75rem 1rem; font-weight: 600; list-style: none; }
-  details.exportbox > summary::before { content: "\25B8"; display: inline-block; width: 1rem; }
-  details.exportbox[open] > summary::before { content: "\25BE"; }
-  details.exportbox > summary:focus-visible { outline: 2px solid var(--cds-focus, #0f62fe); outline-offset: -2px; }
   .exportinner { padding: 0 1rem 1rem; }
   .exportinner h3.boxh { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 .5rem; }
   .exportinner p { margin: .5rem 0; }
@@ -188,9 +183,71 @@
 </section>
 
 <section id="deploy" class="hidden">
-  <details class="exportbox" id="exportBox">
-    <summary>Vie air-gappediin: export, siirto ja käyttöönotto</summary>
-    <div class="exportinner">
+  <div style="display:flex;align-items:center;gap:.5rem;margin:1rem 0 .5rem">
+    <button id="exportBtn" type="button" aria-label="Ohje: vie air-gappediin" aria-haspopup="dialog" title="Ohje: vie air-gappediin">i</button>
+    <span class="muted">Ohje: export, siirto ja käyttöönotto air-gappediin</span>
+  </div>
+
+  <h2>Kirjaudu</h2>
+  <div id="loggedOut">
+    <div class="cds--form-item"><label class="cds--label" for="cmd">Liitä oc login -komento (OpenShift-konsolin "Copy login command")</label>
+      <textarea class="cds--text-area" id="cmd" rows="2" placeholder="oc login --token=sha256~... --server=https://api.example.com:6443" autocomplete="off"></textarea></div>
+    <button class="cds--btn cds--btn--primary" id="login">Kirjaudu</button>
+  </div>
+  <div id="loggedIn" class="hidden">
+    <span class="cds--tag cds--tag--green">Kirjautunut</span>
+    <code id="who"></code> @ <code id="srv"></code>
+    <button class="cds--btn cds--btn--ghost cds--btn--sm" id="logout">Kirjaa ulos</button>
+  </div>
+  <div id="loginMsg" class="muted" style="color: var(--cds-support-error)"></div>
+
+  <div id="deploySection" class="hidden">
+    <h2>Malli ja kohde</h2>
+    <div class="cds--form-item"><label class="cds--label" for="model">Malli</label>
+      <div class="cds--select"><div class="cds--select-input__wrapper"><select class="cds--select-input" id="model" autocomplete="off"></select></div></div>
+      <div class="muted" id="modelsDir"></div></div>
+    <div class="row">
+      <div class="cds--form-item"><label class="cds--label" for="ns">Projekti (namespace)</label><input class="cds--text-input" type="text" id="ns" autocomplete="off" placeholder="llm"></div>
+      <div class="cds--form-item"><label class="cds--label" for="pvc">PVC:n nimi</label><input class="cds--text-input" type="text" id="pvc" autocomplete="off" value="model-storage"><div class="muted">Oletus: oma PVC jokaiselle mallille (RWO-levy voi olla kiinni vain yhdellä nodella kerrallaan). Voit kirjoittaa saman nimen usealle mallille, jos haluat jakaa PVC:n.</div></div>
+      <div class="cds--form-item"><label class="cds--label" for="size">PVC:n koko (Gi)</label><input class="cds--text-input" type="number" id="size" autocomplete="off" min="1" max="2000" value="5"></div>
+    </div>
+    <div class="row">
+      <div class="cds--form-item"><label class="cds--label" for="sc">Storage class (tyhjä = oletus)</label><input class="cds--text-input" type="text" id="sc" autocomplete="off"></div>
+      <div class="cds--form-item"><label class="cds--label" for="img">Apupodin image (air-gapped: oma rekisteri, jossa tar)</label><input class="cds--text-input" type="text" id="img" autocomplete="off"></div>
+    </div>
+    <p class="muted" id="pathHint"></p>
+    <details id="advForm" class="hidden" style="margin:.5rem 0"><summary><strong>Mallikohtaiset suositukset julkaisuun</strong></summary><div id="advFormBody"></div></details>
+    <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="mkns">
+      <label class="cds--checkbox-label" for="mkns"><span class="cds--checkbox-label-text">Luo projekti, jos sitä ei ole</span></label></div>
+    <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="root">
+      <label class="cds--checkbox-label" for="root"><span class="cds--checkbox-label-text">Aja apupodi rootina (vain jos kirjoitus PVC:lle epäonnistuu "Permission denied"; vaatii anyuid-oikeuden)</span></label></div>
+    <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="ovw">
+      <label class="cds--checkbox-label" for="ovw"><span class="cds--checkbox-label-text">Korvaa olemassa oleva malli PVC:llä (vLLM; OVMS luo aina uuden version)</span></label></div>
+    <button class="cds--btn cds--btn--primary" id="go">Kopioi malli PVC:lle</button>
+    <button class="cds--btn cds--btn--ghost" id="clearDeploy">Tyhjennä</button>
+  </div>
+
+  <div id="progress" class="hidden">
+    <h2>Eteneminen</h2>
+    <div id="copyBar"></div>
+    <ul class="steplist" id="steps"></ul>
+    <div id="msg"></div>
+    <pre id="log"></pre>
+  </div>
+  <div id="next" class="cds--tile hidden"></div>
+</section>
+</main>
+
+<dialog id="helpDlg" class="dlg" aria-labelledby="helpTitle">
+  <header><h2 id="helpTitle">Ohje: internetistä air-gappediin</h2>
+    <button class="cds--btn cds--btn--ghost cds--btn--sm" id="helpClose" type="button">Sulje</button></header>
+  <div id="helpBody" class="dlgbody"><span class="muted">Ladataan...</span></div>
+</dialog>
+
+<dialog id="exportDlg" class="dlg" aria-labelledby="exportTitle">
+  <header><h2 id="exportTitle">Vie air-gappediin: export, siirto ja käyttöönotto</h2>
+    <button class="cds--btn cds--btn--ghost cds--btn--sm" id="exportClose" type="button">Sulje</button></header>
+    <div class="dlgbody exportinner">
     <svg class="flow" viewBox="0 0 1406 230" role="img" aria-label="Vaiheet: 1 hae mallit Model Hubiin, 2 vie Model Hub, 3 kopioi tikulle, 4 kopioi air-gapped-koneelle ja lataa, 5 käynnistä Model Hub, 6 vie malli OpenShift AI:hin, 7 deploy model OpenShift AI:ssa, 8 testaa malli notebookilla"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="farrow" d="M0 0L10 5L0 10z"/></marker></defs><rect x="4" y="8" width="342" height="214" class="fzoneA"/><text x="16" y="28" class="fz">Internet-kone</text><rect x="532" y="8" width="870" height="214" class="fzoneB"/><text x="544" y="28" class="fz">Air-gapped-ympäristö</text><g class="fline" stroke-width="2" marker-end="url(#arr)"><line x1="164" y1="120" x2="186" y2="120"/><line x1="340" y1="120" x2="362" y2="120"/><line x1="516" y1="120" x2="538" y2="120"/><line x1="692" y1="120" x2="714" y2="120"/><line x1="868" y1="120" x2="890" y2="120"/><line x1="1044" y1="120" x2="1066" y2="120"/><line x1="1220" y1="120" x2="1242" y2="120"/></g><g transform="translate(12,45)"><rect class="fbox" width="150" height="165"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">1</text><g transform="translate(52,40)" fill="none" stroke="currentColor" stroke-width="2"><circle cx="19" cy="19" r="15"/><path d="M30 30L44 44" stroke-width="3"/></g><text x="75" y="115" class="ft" text-anchor="middle">Hae mallit</text><text x="75" y="133" class="fs" text-anchor="middle">Model Hubiin</text><text x="75" y="149" class="fs" text-anchor="middle">Hugging Facesta</text></g><g transform="translate(188,45)"><rect class="fbox" width="150" height="165"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">2</text><g transform="translate(55,40)" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 0L40 10V32L20 42L0 32V10Z"/><path d="M0 10L20 20L40 10M20 20V42"/></g><text x="75" y="115" class="ft" text-anchor="middle">Vie Model Hub</text><text x="75" y="133" class="fs" text-anchor="middle">kontti + mallit</text><text x="75" y="149" class="fs" text-anchor="middle">→ .tar.gz</text></g><g transform="translate(364,45)"><rect class="fbox" width="150" height="165"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">3</text><g transform="translate(40,48)" fill="none" stroke="currentColor" stroke-width="2"><rect x="0" y="9" width="48" height="22" rx="2"/><rect x="48" y="14" width="14" height="12" fill="currentColor"/><rect x="8" y="15" width="10" height="10" fill="currentColor"/></g><text x="75" y="115" class="ft" text-anchor="middle">Kopioi tikulle</text><text x="75" y="133" class="fs" text-anchor="middle">arkisto, .sha256,</text><text x="75" y="149" class="fs" text-anchor="middle">start.sh</text></g><g transform="translate(540,45)"><rect class="fbox" width="150" height="165"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">4</text><g transform="translate(47,40)" fill="none" stroke="currentColor" stroke-width="2"><rect x="0" y="0" width="56" height="36" rx="2"/><path d="M20 46H36M28 36V46"/><path d="M28 8V26M20 19L28 27L36 19"/></g><text x="75" y="115" class="ft" text-anchor="middle">Kopioi koneelle</text><text x="75" y="133" class="fs" text-anchor="middle">tarkista summa,</text><text x="75" y="149" class="fs" text-anchor="middle">docker load</text></g><g transform="translate(716,45)"><rect class="fbox" width="150" height="165"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">5</text><g transform="translate(52,38)" fill="none" stroke="currentColor" stroke-width="2"><circle cx="23" cy="23" r="22"/><path d="M17 13L35 23L17 33Z" fill="currentColor"/></g><text x="75" y="115" class="ft" text-anchor="middle">Käynnistä</text><text x="75" y="133" class="fs" text-anchor="middle">Model Hub</text><text x="75" y="149" class="fs" text-anchor="middle">127.0.0.1:8767</text></g><g transform="translate(892,45)"><rect class="fbox" width="150" height="165"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">6</text><g transform="translate(52,38)" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="23" cy="8" rx="20" ry="7"/><path d="M3 8V36C3 44 43 44 43 36V8"/><path d="M3 22C3 30 43 30 43 22"/></g><text x="75" y="115" class="ft" text-anchor="middle">Vie OpenShift AI:hin</text><text x="75" y="133" class="fs" text-anchor="middle">kirjaudu, valitse malli,</text><text x="75" y="149" class="fs" text-anchor="middle">kopioi PVC:lle</text></g><g transform="translate(1068,45)"><rect class="fbox" width="150" height="165"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">7</text><g transform="translate(50,38)" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2H46V34H22L10 46V34H4Z"/><path d="M15 18L22 25L35 11" stroke-width="3"/></g><text x="75" y="115" class="ft" text-anchor="middle">Deploy Model</text><text x="75" y="133" class="fs" text-anchor="middle">OpenShift AI:ssa</text><text x="75" y="149" class="fs" text-anchor="middle">(vLLM / OVMS)</text></g><g transform="translate(1244,45)"><rect class="fbox" width="150" height="165"/><circle cx="22" cy="22" r="13" fill="#0f62fe"/><text x="22" y="27" class="fn">8</text><g transform="translate(48,36)" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="0" width="44" height="52" rx="2"/><path d="M12 14H40M12 24H40M12 34H28" stroke-width="2"/><path d="M34 40L44 46L34 52Z" fill="currentColor"/></g><text x="75" y="115" class="ft" text-anchor="middle">Testaa malli</text><text x="75" y="133" class="fs" text-anchor="middle">notebook workbenchissa</text><text x="75" y="149" class="fs" text-anchor="middle">(osai_model_test)</text></g></svg>
     <p class="muted">Vaiheiden ohjeet ja kopioitavat komennot ovat alla samoilla numeroilla.</p>
 <p id="exportSummary" class="muted"></p>
@@ -265,62 +322,6 @@ docker images | grep model-hub                      # näyttää model-hub:airga
     <p class="muted"><strong>Nimeämisohjeet:</strong> malli-id, deploymentin nimi ja PVC:n nimi noudattavat Kubernetes-nimeämistä (pienet kirjaimet, numerot ja viivat). Tarkemmat ohjeet ja esimerkit: vaiheen 7 tulosruudun kohta <em>Model deployment name</em> sekä notebookin osio 1. Jos kutsu antaa 404 (vLLM) tai tuntemattoman mallin (OVMS), tarkista ensin nimi: notebookin osio 2 listaa palvelimen käyttämän nimen.</p>
     <p class="muted">Air-gapped: osio 3c hakee tietoja Hugging Facesta (<code>HF_REPO = None</code> ohittaa sen) ja ensimmäinen solu tekee <code>%pip install</code>, joten tarvittavat paketit (<code>requests numpy pillow</code>) pitää olla workbenchin imagessa tai omassa PyPI-peilissä. Embedding <code>ovms_v2</code> tarvitsee lisäksi <code>transformers</code> ja tokenizerin (<code>EMBED_HF_REPO</code>).</p>
     </div>
-  </details>
-
-  <h2>Kirjaudu</h2>
-  <div id="loggedOut">
-    <div class="cds--form-item"><label class="cds--label" for="cmd">Liitä oc login -komento (OpenShift-konsolin "Copy login command")</label>
-      <textarea class="cds--text-area" id="cmd" rows="2" placeholder="oc login --token=sha256~... --server=https://api.example.com:6443" autocomplete="off"></textarea></div>
-    <button class="cds--btn cds--btn--primary" id="login">Kirjaudu</button>
-  </div>
-  <div id="loggedIn" class="hidden">
-    <span class="cds--tag cds--tag--green">Kirjautunut</span>
-    <code id="who"></code> @ <code id="srv"></code>
-    <button class="cds--btn cds--btn--ghost cds--btn--sm" id="logout">Kirjaa ulos</button>
-  </div>
-  <div id="loginMsg" class="muted" style="color: var(--cds-support-error)"></div>
-
-  <div id="deploySection" class="hidden">
-    <h2>Malli ja kohde</h2>
-    <div class="cds--form-item"><label class="cds--label" for="model">Malli</label>
-      <div class="cds--select"><div class="cds--select-input__wrapper"><select class="cds--select-input" id="model" autocomplete="off"></select></div></div>
-      <div class="muted" id="modelsDir"></div></div>
-    <div class="row">
-      <div class="cds--form-item"><label class="cds--label" for="ns">Projekti (namespace)</label><input class="cds--text-input" type="text" id="ns" autocomplete="off" placeholder="llm"></div>
-      <div class="cds--form-item"><label class="cds--label" for="pvc">PVC:n nimi</label><input class="cds--text-input" type="text" id="pvc" autocomplete="off" value="model-storage"><div class="muted">Oletus: oma PVC jokaiselle mallille (RWO-levy voi olla kiinni vain yhdellä nodella kerrallaan). Voit kirjoittaa saman nimen usealle mallille, jos haluat jakaa PVC:n.</div></div>
-      <div class="cds--form-item"><label class="cds--label" for="size">PVC:n koko (Gi)</label><input class="cds--text-input" type="number" id="size" autocomplete="off" min="1" max="2000" value="5"></div>
-    </div>
-    <div class="row">
-      <div class="cds--form-item"><label class="cds--label" for="sc">Storage class (tyhjä = oletus)</label><input class="cds--text-input" type="text" id="sc" autocomplete="off"></div>
-      <div class="cds--form-item"><label class="cds--label" for="img">Apupodin image (air-gapped: oma rekisteri, jossa tar)</label><input class="cds--text-input" type="text" id="img" autocomplete="off"></div>
-    </div>
-    <p class="muted" id="pathHint"></p>
-    <details id="advForm" class="hidden" style="margin:.5rem 0"><summary><strong>Mallikohtaiset suositukset julkaisuun</strong></summary><div id="advFormBody"></div></details>
-    <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="mkns">
-      <label class="cds--checkbox-label" for="mkns"><span class="cds--checkbox-label-text">Luo projekti, jos sitä ei ole</span></label></div>
-    <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="root">
-      <label class="cds--checkbox-label" for="root"><span class="cds--checkbox-label-text">Aja apupodi rootina (vain jos kirjoitus PVC:lle epäonnistuu "Permission denied"; vaatii anyuid-oikeuden)</span></label></div>
-    <div class="cds--form-item cds--checkbox-wrapper"><input class="cds--checkbox" type="checkbox" id="ovw">
-      <label class="cds--checkbox-label" for="ovw"><span class="cds--checkbox-label-text">Korvaa olemassa oleva malli PVC:llä (vLLM; OVMS luo aina uuden version)</span></label></div>
-    <button class="cds--btn cds--btn--primary" id="go">Kopioi malli PVC:lle</button>
-    <button class="cds--btn cds--btn--ghost" id="clearDeploy">Tyhjennä</button>
-  </div>
-
-  <div id="progress" class="hidden">
-    <h2>Eteneminen</h2>
-    <div id="copyBar"></div>
-    <ul class="steplist" id="steps"></ul>
-    <div id="msg"></div>
-    <pre id="log"></pre>
-  </div>
-  <div id="next" class="cds--tile hidden"></div>
-</section>
-</main>
-
-<dialog id="helpDlg" class="dlg" aria-labelledby="helpTitle">
-  <header><h2 id="helpTitle">Ohje: internetistä air-gappediin</h2>
-    <button class="cds--btn cds--btn--ghost cds--btn--sm" id="helpClose" type="button">Sulje</button></header>
-  <div id="helpBody" class="dlgbody"><span class="muted">Ladataan...</span></div>
 </dialog>
 
 <script>
@@ -830,6 +831,9 @@ paintThemeBtn(document.documentElement.dataset.theme);
 
 $("helpBtn").onclick = openHelp;
 $("helpClose").onclick = () => $("helpDlg").close();
+$("exportBtn").onclick = () => $("exportDlg").showModal();
+$("exportClose").onclick = () => $("exportDlg").close();
+$("exportDlg").addEventListener("click", e => { if (e.target === $("exportDlg")) $("exportDlg").close(); });
 $("helpDlg").addEventListener("click", e => { if (e.target === $("helpDlg")) $("helpDlg").close(); });
 
 loadInfo().then(() => { loadStorage(); return api("/api/session"); }).then(setLogged);
