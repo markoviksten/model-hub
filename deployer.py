@@ -379,8 +379,13 @@ def _check(job: dict, res: subprocess.CompletedProcess, msg: str) -> None:
 
 
 def _rsync(job: dict, req: DeployRequest, tmp: str) -> None:
-    """Stream `oc rsync` output into the job log; fail on non-zero exit."""
-    # Without a local rsync binary (e.g. Windows) oc falls back to tar, which needs the target dir to exist.
+    """Copy model files to PVC using oc cp (file-by-file) to avoid tar pipe failures on large files.
+
+    oc rsync falls back to a tar pipe on Windows (no local rsync binary).  For files >4 GB that
+    pipe tends to produce "input/output error" because the OS or Docker read-ahead exhausts
+    buffers.  oc cp sends one file at a time over the exec websocket and is far more robust.
+    """
+    # Ensure target directory exists inside the loader pod.
     res = _oc(["exec", LOADER_POD, "-n", req.namespace, "--", "mkdir", "-p", tmp])
     if res.returncode != 0:
         _log(job, res.stderr)
@@ -388,21 +393,33 @@ def _rsync(job: dict, req: DeployRequest, tmp: str) -> None:
         _log(job, diag.stdout)
         _fail("Ei kirjoitusoikeutta PVC:lle (storage ei sovella fsGroup-oikeuksia). "
               "Valitse 'Aja apupodi rootina' (vaatii anyuid-oikeuden, esim. cluster-admin) ja yritä uudelleen.")
-    job["copy_total"] = _local_size(settings.MODELS_DIR / req.model_dir)
+
+    local_dir = settings.MODELS_DIR / req.model_dir
+    skip = {rt.MANIFEST, ".cache"}
+    # Collect all files (not dirs) recursively, excluding manifest and .cache.
+    files = [
+        f for f in local_dir.rglob("*")
+        if f.is_file() and not any(part in skip for part in f.parts)
+    ]
+    job["copy_total"] = sum(f.stat().st_size for f in files)
+
     stop = threading.Event()
     threading.Thread(target=_poll_copied, args=(job, req, tmp, stop), daemon=True).start()
-    args = [_oc_bin(), "rsync", f"{req.model_dir}/", f"{LOADER_POD}:{tmp}/",
-            "-n", req.namespace, "--exclude=.cache", f"--exclude={rt.MANIFEST}"]
     try:
-        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                                env=_env(), cwd=str(settings.MODELS_DIR))
-        for line in proc.stdout or []:
-            _log(job, line)
-        code = proc.wait()
+        for f in files:
+            rel = f.relative_to(local_dir)
+            dest_dir = f"{tmp}/{rel.parent}" if str(rel.parent) != "." else tmp
+            # Ensure sub-directory exists in pod.
+            if str(rel.parent) != ".":
+                _oc(["exec", LOADER_POD, "-n", req.namespace, "--", "mkdir", "-p", dest_dir])
+            _log(job, f"Kopioidaan {rel} ({f.stat().st_size // 1_048_576} MB)…")
+            res = _oc(["cp", str(f), f"{LOADER_POD}:{dest_dir}/{f.name}",
+                       "-n", req.namespace], timeout=7200)  # 2h per file
+            if res.returncode != 0:
+                _log(job, res.stderr)
+                _fail(f"Kopiointi epäonnistui tiedostolle {rel}. Katso loki.")
     finally:
         stop.set()
-    if code != 0:
-        _fail("Kopiointi (oc rsync) epäonnistui. Katso loki.")
     job["copy_done"] = job["copy_total"]
 
 
@@ -479,7 +496,7 @@ def _run_deploy(job: dict, req: DeployRequest) -> None:
             if not req.create_namespace:
                 _fail("Projektia ei löydy (tai ei oikeuksia). Valitse 'Luo projekti' tai tarkista nimi.")
             manifest = {"apiVersion": "v1", "kind": "Namespace", "metadata": {
-                "name": ns, "labels": {DASHBOARD_LABEL: "true"}}}
+                "name": ns, "labels": {DASHBOARD_LABEL: "true", "modelmesh-enabled": "false"}}}
             _check(job, _oc(["apply", "-f", "-"], input_text=json.dumps(manifest)), "Projektin luonti epäonnistui.")
         else:
             # Existing project: make sure the OSAI dashboard shows it; not fatal if we lack permission.
@@ -595,6 +612,28 @@ def _run_deploy(job: dict, req: DeployRequest) -> None:
     job["state"] = "error" if failed else "done"
 
 
+# Max wall-clock seconds a deploy (copy) job may stay "running" (2 h per file × reasonable count).
+_MAX_DEPLOY_AGE_S = 4 * 3600
+
+
+@router.post("/deploys/reset")
+def reset_deploys() -> dict:
+    """Force-cancel all stuck 'running' copy jobs so a new deploy can start."""
+    now = time.time()
+    cleared = 0
+    with _lock:
+        for j in _jobs.values():
+            if j["state"] == "running":
+                j["state"] = "error"
+                j["ended_at"] = now
+                j["message"] = "Manuaalisesti keskeytetty (reset)."
+                for step in j["steps"]:
+                    if step["state"] == "running":
+                        step["state"] = "error"
+                cleared += 1
+    return {"cleared": cleared}
+
+
 @router.post("/deploys", response_model=DeployStatus, status_code=202)
 def start_deploy(req: DeployRequest) -> DeployStatus:
     """Validate input and start copying a model folder to a PVC."""
@@ -606,7 +645,16 @@ def start_deploy(req: DeployRequest) -> DeployStatus:
         raise HTTPException(422, "Virheellinen storage class.")
     if not IMAGE_RE.match(req.loader_image):
         raise HTTPException(422, "Virheellinen image-osoite.")
+    now = time.time()
     with _lock:
+        for j in _jobs.values():
+            if j["state"] == "running" and (now - j.get("started_at", now)) > _MAX_DEPLOY_AGE_S:
+                j["state"] = "error"
+                j["ended_at"] = now
+                j["message"] = "Tehtävä keskeytettiin automaattisesti (aikakatkaisu)."
+                for step in j["steps"]:
+                    if step["state"] == "running":
+                        step["state"] = "error"
         if any(j["state"] == "running" for j in _jobs.values()):
             raise HTTPException(409, "Toinen kopiointi on jo käynnissä.")
         job_id = uuid.uuid4().hex[:12]

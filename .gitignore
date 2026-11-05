@@ -8,3 +8,4 @@ dist/
 *.err
 *.out
 *.log
+.bob/tmp/

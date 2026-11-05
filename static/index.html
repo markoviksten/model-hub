@@ -56,6 +56,8 @@
   ul.steplist .incomplete { color: var(--cds-text-secondary); }
   ul.steplist .incomplete svg { fill: var(--cds-icon-disabled); }
   ul.steplist .error svg { fill: var(--cds-support-error); }
+  .mh-spinner { width:14px; height:14px; border:2px solid var(--cds-border-subtle); border-top-color:var(--cds-border-interactive,#0f62fe); border-radius:50%; flex:none; animation:mh-spin .7s linear infinite; }
+  @keyframes mh-spin { to { transform:rotate(360deg); } }
   #dl, #login, #go, #clearDeploy { margin-top: .5rem; }
   .jobbox { margin-top: 1rem; }
   .meta { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: .5rem; font-size: .875rem; }
@@ -131,6 +133,7 @@
   <div class="cds--tab--list" role="tablist">
     <button class="cds--tabs__nav-item" role="tab" data-tab="get">1. Hae malli (internet)</button>
     <button class="cds--tabs__nav-item" role="tab" data-tab="deploy">2. Vie malli (on-prem)</button>
+    <button class="cds--tabs__nav-item" role="tab" data-tab="launch">3. Deploy &amp; testi (OSAI)</button>
   </div>
 </div>
 
@@ -235,6 +238,173 @@
     <pre id="log"></pre>
   </div>
   <div id="next" class="cds--tile hidden"></div>
+</section>
+
+<section id="launch" class="hidden">
+  <h2>Deploy malli OpenShift AI:hin (InferenceService)</h2>
+  <p class="muted">Luo InferenceService suoraan PVC:llä olevasta mallista. Lomake esitäytetään mallikohtaisilla suosituksilla.</p>
+
+  <div id="launchLoginNote" class="cds--inline-notification cds--inline-notification--warning hidden">
+    <div class="cds--inline-notification__details"><div class="cds--inline-notification__text-wrapper">
+    <div class="cds--inline-notification__subtitle">Kirjaudu ensin välilehdellä 2 (oc login).</div></div></div></div>
+
+  <div id="launchBody" class="hidden">
+    <!-- Namespace + existing deployments -->
+    <div class="row" style="margin-top:1rem">
+      <div class="cds--form-item">
+        <label class="cds--label" for="lns">Projekti (namespace)</label>
+        <div style="display:flex;gap:.5rem">
+          <input class="cds--text-input" type="text" id="lns" autocomplete="off" placeholder="llm-demo" style="flex:1">
+          <button class="cds--btn cds--btn--secondary cds--btn--sm" id="lnsLoad" style="white-space:nowrap">Hae tiedot</button>
+        </div>
+        <div id="lnsProgress" class="hidden" style="margin-top:.6rem">
+          <div style="display:flex;align-items:center;gap:.6rem;font-size:.8125rem;color:var(--cds-text-secondary)">
+            <div class="mh-spinner"></div>
+            <span id="lnsProgressText">Haetaan tietoja…</span>
+          </div>
+          <div style="margin-top:.35rem;height:4px;background:var(--cds-layer-accent-01,#e0e0e0);border-radius:2px;overflow:hidden">
+            <div id="lnsProgressBar" style="height:100%;width:0%;background:var(--cds-border-interactive,#0f62fe);border-radius:2px;transition:width .4s ease"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="existingIsvcs" class="hidden" style="margin-bottom:1rem">
+      <h3 style="font-size:1rem;font-weight:600;margin:.75rem 0 .5rem">Projektissa olemassa olevat deploymentsit</h3>
+      <div id="existingIsvcTable"></div>
+    </div>
+
+    <!-- Source model -->
+    <div class="cds--form-item" style="margin-top:1rem">
+      <label class="cds--label" for="lmodel">Lähdemalli (PVC:llä oleva malli, osio 2)</label>
+      <div class="cds--select"><div class="cds--select-input__wrapper">
+        <select class="cds--select-input" id="lmodel"></select></div></div>
+      <div class="muted" id="lmodelHint"></div>
+    </div>
+
+    <!-- Deployment name -->
+    <div class="row">
+      <div class="cds--form-item">
+        <label class="cds--label" for="ldname">Deployment name (Kubernetes-muoto)</label>
+        <input class="cds--text-input" type="text" id="ldname" autocomplete="off" placeholder="gemma-4-26b">
+        <div class="muted">Pienet kirjaimet, numerot ja viivat. Tämä on myös malli-id API-kutsuissa.</div>
+      </div>
+      <div class="cds--form-item">
+        <label class="cds--label" for="lpvc">PVC:n nimi <span class="muted" id="lpvcSource"></span></label>
+        <input class="cds--text-input" type="text" id="lpvc" autocomplete="off" placeholder="–" readonly
+               style="background:var(--cds-field-disabled,#f4f4f4);cursor:default;color:var(--cds-text-secondary)">
+        <div class="muted" style="margin-top:.2rem">Täyttyy automaattisesti valitun PVC-mallin mukaan. Hae tiedot ensin.</div>
+      </div>
+    </div>
+
+    <!-- Serving runtime + modelFormat -->
+    <div class="cds--form-item">
+      <label class="cds--label" for="lrtm">Serving runtime</label>
+      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <div class="cds--select" style="flex:1"><div class="cds--select-input__wrapper">
+          <select class="cds--select-input" id="lrtm"></select></div></div>
+        <button class="cds--btn cds--btn--ghost cds--btn--sm" type="button" id="lrtmManualToggle" style="white-space:nowrap">✏️ Kirjoita käsin</button>
+      </div>
+      <div id="lrtmManualBox" style="display:none;margin-top:.35rem">
+        <input class="cds--text-input" type="text" id="lrtmManual" autocomplete="off"
+               placeholder="esim. vllm-cpu-x86-64  tai  ovms"
+               style="font-family:monospace">
+        <div class="muted">Kirjoita Kubernetes-nimi (oc get servingruntimes -n &lt;ns&gt;). Tyhjä = OSAI valitsee automaattisesti.</div>
+      </div>
+      <div id="lrtmNote" style="margin-top:.2rem"></div>
+    </div>
+    <div class="cds--form-item" style="margin-top:.5rem">
+      <label class="cds--label" for="lmodelFormat">KServe modelFormat — framework <span class="muted">(mitä formaattia OSAI odottaa)</span></label>
+      <div class="cds--select"><div class="cds--select-input__wrapper">
+        <select class="cds--select-input" id="lmodelFormat">
+          <option value="vLLM">vLLM — kaikki vLLM-runtimes (oletus, toimii lähes aina)</option>
+          <option value="openvino_ir">openvino_ir — OpenVINO Model Server (PAKOLLINEN OVMS-mallille)</option>
+          <option value="onnx">onnx — OpenVINO Model Server / Triton (PAKOLLINEN versio!)</option>
+          <option value="pytorch">pytorch — Torchserve/Triton</option>
+          <option value="sklearn">sklearn — MLServer</option>
+        </select>
+      </div></div>
+      <div id="lmodelFormatNote" class="muted" style="margin-top:.2rem">
+        Jos saat "No runtime found to support specified framework" → vaihda tähän <strong>vLLM</strong>.
+      </div>
+    </div>
+    <div class="cds--form-item" style="margin-top:.35rem">
+      <label class="cds--label" for="lmodelFormatVersion">KServe modelFormat — version <span id="lmodelFormatVersionReq" class="muted">(valinnainen)</span></label>
+      <input class="cds--text-input" type="text" id="lmodelFormatVersion" autocomplete="off" placeholder="esim. opset13 tai 1 tai tyhjä">
+      <div id="lmodelFormatVersionNote" class="muted" style="margin-top:.2rem">Jätä tyhjäksi muille runtimeille. <strong>OpenVINO Model Server vaatii aina version</strong> — täytetään automaattisesti (openvino_ir → <code>opset13</code>, onnx → <code>1</code>).</div>
+    </div>
+
+    <!-- Hardware -->
+    <div class="row">
+      <div class="cds--form-item">
+        <label class="cds--label" for="lmem">Muistiraja (Gi)</label>
+        <input class="cds--text-input" type="number" id="lmem" min="1" max="2000" value="8">
+      </div>
+      <div class="cds--form-item">
+        <label class="cds--label" for="lcpu">CPU-ytimet</label>
+        <input class="cds--text-input" type="number" id="lcpu" min="1" max="512" value="4">
+      </div>
+      <div class="cds--form-item">
+        <label class="cds--label" for="lcpureq">CPU request (m, tyhjä = auto)</label>
+        <input class="cds--text-input" type="number" id="lcpureq" min="50" placeholder="auto">
+      </div>
+      <div class="cds--form-item">
+        <label class="cds--label" for="lgpu">GPU-määrä (0 = CPU-ajo)</label>
+        <input class="cds--text-input" type="number" id="lgpu" min="0" max="16" value="0">
+      </div>
+    </div>
+
+    <!-- Runtime args & env -->
+    <div class="cds--form-item">
+      <label class="cds--label" for="largs">Runtime-argumentit (yksi per rivi)</label>
+      <textarea class="cds--text-area" id="largs" rows="4" placeholder="--dtype=bfloat16&#10;--max-model-len=4096"></textarea>
+      <div class="muted">Esitäytetty mallikohtaisilla suosituksilla (advisor). Muokkaa tarpeen mukaan.</div>
+    </div>
+    <div class="cds--form-item">
+      <label class="cds--label" for="lenv">Ympäristömuuttujat (AVAIN=ARVO, yksi per rivi)</label>
+      <textarea class="cds--text-area" id="lenv" rows="3" placeholder="HF_HUB_OFFLINE=1&#10;VLLM_CPU_KVCACHE_SPACE=4"></textarea>
+    </div>
+
+    <!-- Options -->
+    <div class="cds--form-item cds--checkbox-wrapper">
+      <input class="cds--checkbox" type="checkbox" id="ltok" checked>
+      <label class="cds--checkbox-label" for="ltok"><span class="cds--checkbox-label-text">Require token authentication</span></label>
+    </div>
+    <div class="cds--form-item cds--checkbox-wrapper">
+      <input class="cds--checkbox" type="checkbox" id="lext" checked>
+      <label class="cds--checkbox-label" for="lext"><span class="cds--checkbox-label-text">External route (julkinen HTTPS-osoite)</span></label>
+    </div>
+    <div class="cds--form-item cds--checkbox-wrapper">
+      <input class="cds--checkbox" type="checkbox" id="lsmoke" checked>
+      <label class="cds--checkbox-label" for="lsmoke"><span class="cds--checkbox-label-text">Aja smoke-testi kun malli on Ready</span></label>
+    </div>
+
+    <!-- Advice box -->
+    <details id="ladvBox" class="hidden" style="margin:.5rem 0">
+      <summary><strong>Mallikohtaiset suositukset (advisor)</strong></summary>
+      <div id="ladvBody"></div>
+    </details>
+
+    <div style="display:flex;gap:.75rem;margin-top:.75rem;flex-wrap:wrap;align-items:center">
+      <button class="cds--btn cds--btn--primary" id="lgo">Julkaise InferenceService</button>
+      <button class="cds--btn cds--btn--ghost" id="lclear">Tyhjennä</button>
+      <button class="cds--btn cds--btn--danger--ghost cds--btn--sm hidden" id="lreset"
+              title="Pakota jumittunut deploy-tehtävä virhetilaan jotta uusi voidaan käynnistää">
+        ⚠ Nollaa jumittunut deploy
+      </button>
+    </div>
+  </div><!-- /launchBody -->
+
+  <!-- Progress -->
+  <div id="launchProgress" class="hidden" style="margin-top:1.5rem">
+    <h2>Eteneminen</h2>
+    <ul class="steplist" id="launchSteps"></ul>
+    <div id="launchMsg"></div>
+    <pre id="launchLog"></pre>
+  </div>
+
+  <!-- Result -->
+  <div id="launchResult" class="cds--tile hidden" style="margin-top:1rem"></div>
 </section>
 </main>
 
@@ -385,9 +555,10 @@ function poll(key, url, render, onDone) {
 
 /* ---- tabs ---- */
 function showTab(name) {
-  for (const t of ["get", "deploy"]) $(t).classList.toggle("hidden", t !== name);
+  for (const t of ["get", "deploy", "launch"]) $(t).classList.toggle("hidden", t !== name);
   document.querySelectorAll("[data-tab]").forEach(b => b.classList.toggle("cds--tabs__nav-item--selected", b.dataset.tab === name));
   if (name === "deploy") loadModels();
+  if (name === "launch") initLaunchTab();
 }
 document.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
@@ -835,6 +1006,614 @@ $("exportBtn").onclick = () => $("exportDlg").showModal();
 $("exportClose").onclick = () => $("exportDlg").close();
 $("exportDlg").addEventListener("click", e => { if (e.target === $("exportDlg")) $("exportDlg").close(); });
 $("helpDlg").addEventListener("click", e => { if (e.target === $("helpDlg")) $("helpDlg").close(); });
+
+/* ═══════════════════════════════════════════════════════════════════════
+   OSIO 3 — Deploy & testi (InferenceService)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+let lAdviceCache = {};   // model name → advisor response
+let lRuntimes = [];      // [{name, display_name, runtime, protocol}]
+let lNsLoaded = "";      // last namespace for which data was fetched
+let lPvcModels = [];     // [{pvc, model_path, framework}] — models found on cluster PVCs
+
+/** Called when the Launch tab becomes visible. */
+function initLaunchTab() {
+  const logged = $("loggedIn") && !$("loggedIn").classList.contains("hidden");
+  $("launchLoginNote").classList.toggle("hidden", logged);
+  $("launchBody").classList.toggle("hidden", !logged);
+  if (logged) {
+    populateLaunchModels();
+    // Carry over namespace from osio 2 if already set
+    if (!$("lns").value && $("ns").value) $("lns").value = $("ns").value;
+  }
+}
+
+/** Fill the lmodel <select>.
+ *
+ * When a namespace has been loaded: show only PVC models from the cluster.
+ * Fallback to local image-models is intentionally removed — those are not
+ * on any PVC and cannot be deployed via InferenceService.
+ */
+function populateLaunchModels() {
+  const sel = $("lmodel");
+  if (lPvcModels.length) {
+    // PVC models: value encodes "pvc::model_path" so we can recover both parts
+    sel.innerHTML = lPvcModels.map(m => {
+      const val = `${m.pvc}::${m.model_path}`;
+      const fwLabel = m.framework ? ` · ${m.framework}` : "";
+      return `<option value="${esc(val)}">${esc(m.pvc)} / ${esc(m.model_path)}${fwLabel}</option>`;
+    }).join("");
+  } else if (lNsLoaded) {
+    // Namespace was fetched but no PVC models found
+    sel.innerHTML = `<option value="">Ei mallikansioita PVC:llä — siirrä malli ensin osiolla 2</option>`;
+  } else {
+    // No namespace fetched yet
+    sel.innerHTML = `<option value="">Hae tiedot ensin (Vaihe 3 → Hae tiedot)</option>`;
+  }
+  onLaunchModelChange();
+}
+
+/** Update the progress bar and step label under "Hae tiedot".
+ * @param {number} pct  0–100
+ * @param {string} text Step description shown next to the spinner.
+ */
+function lnsSetProgress(pct, text) {
+  $("lnsProgressBar").style.width = pct + "%";
+  $("lnsProgressText").textContent = text;
+}
+
+/** When namespace field is submitted — load existing ISVCs, serving runtimes and PVC models. */
+async function fetchNsData() {
+  const ns = $("lns").value.trim();
+  if (!ns) return;
+  $("lnsLoad").disabled = true;
+  $("existingIsvcs").classList.add("hidden");
+  $("lnsProgress").classList.remove("hidden");
+  lnsSetProgress(5, "Haetaan olemassa olevat deploymentsit…");
+
+  // All four fetches run sequentially so the progress bar advances meaningfully.
+  // PVCs are last and slowest (may spawn inspect pods in the cluster).
+  let isvcData = { items: [] }, rtmData = { items: [] }, pvcData = { items: [] };
+  let isvcErr = null, rtmErr = null, pvcErr = null;
+
+  try { isvcData = await api(`/api/ns-isvcs?namespace=${encodeURIComponent(ns)}`); }
+  catch (e) { isvcErr = e.message; }
+  lnsSetProgress(20, "Haetaan serving runtimet…");
+
+  try { rtmData = await api(`/api/serving-runtimes?namespace=${encodeURIComponent(ns)}`); }
+  catch (e) { rtmErr = e.message; }
+  lnsSetProgress(35, "Haetaan PVC:t ja mallikansiot (voi kestää 1–2 min)…");
+
+  try { pvcData = await api(`/api/pvcs?namespace=${encodeURIComponent(ns)}`); }
+  catch (e) { pvcErr = e.message; }
+  lnsSetProgress(80, "Varmistetaan ServingRuntimet (OVMS & vLLM)…");
+
+  lNsLoaded = ns;
+
+  // ── Auto-ensure ServingRuntimes (OVMS & vLLM) ───────────────────────────
+  let ovmsNote = "";
+  try {
+    const ovmsRes = await post(`/api/ensure-ovms-runtime?namespace=${encodeURIComponent(ns)}`);
+    if (ovmsRes.status === "created") {
+      ovmsNote = `<span style="color:#198038">✓ OVMS ServingRuntime (kserve-ovms) luotu automaattisesti namespaceen <strong>${esc(ns)}</strong>.</span>`;
+    }
+  } catch (e) {
+    ovmsNote = `<span style="color:#f1c21b">⚠ OVMS ServingRuntimen automaattinen luonti epäonnistui: ${esc(e.message)}</span>`;
+  }
+  try {
+    const vllmRes = await post(`/api/ensure-vllm-runtime?namespace=${encodeURIComponent(ns)}`);
+    if (vllmRes.status === "created") {
+      ovmsNote += `${ovmsNote ? "<br>" : ""}<span style="color:#198038">✓ vLLM ServingRuntime (${esc(vllmRes.name)}) luotu automaattisesti namespaceen <strong>${esc(ns)}</strong>.</span>`;
+    }
+    try { rtmData = await api(`/api/serving-runtimes?namespace=${encodeURIComponent(ns)}`); } catch { /* ignore */ }
+  } catch (e) {
+    /* vLLM runtime is optional until a vLLM model is launched */
+  }
+  lnsSetProgress(100, "Valmis.");
+  setTimeout(() => $("lnsProgress").classList.add("hidden"), 1200);
+
+  // ── Flatten PVC model entries ─────────────────────────────────────────
+  lPvcModels = [];
+  for (const pvc of (pvcData.items || [])) {
+    for (const m of (pvc.models || [])) {
+      lPvcModels.push(m);
+    }
+  }
+  populateLaunchModels();
+
+  // Show PVC + OVMS status under the model selector
+  const hint = $("lmodelHint");
+  const pvcItems = pvcData.items || [];
+  const pvcNames = pvcItems.map(p => `<code>${esc(p.name)}</code>`).join(", ");
+  const pvcSummary = pvcItems.length
+    ? `${pvcItems.length} PVC: ${pvcNames}`
+    : "";
+  if (pvcErr) {
+    hint.innerHTML = `<span style="color:#da1e28">⛔ PVC-listaus epäonnistui: ${esc(pvcErr)}</span>`
+      + (ovmsNote ? `<br>${ovmsNote}` : "");
+  } else if (!lPvcModels.length) {
+    hint.innerHTML = (pvcItems.length
+      ? `${pvcSummary} — mallikansioita ei havaittu (siirrä malli ensin osiolla 2).`
+      : "Ei PVC:tä projektissa. Siirrä malli ensin osiolla 2.")
+      + (ovmsNote ? `<br>${ovmsNote}` : "");
+  } else {
+    // Models found — show PVC summary and OVMS note
+    hint.innerHTML = (pvcSummary ? `${pvcSummary}.` : "")
+      + (ovmsNote ? `${pvcSummary ? " " : ""}${ovmsNote}` : "");
+  }
+
+  // ── Render existing ISVCs ─────────────────────────────────────────────
+  if (isvcErr) {
+    $("existingIsvcTable").innerHTML = notify("error", "ISVC-listaus epäonnistui: " + isvcErr);
+    $("existingIsvcs").classList.remove("hidden");
+  } else if (isvcData.items.length) {
+    const rows = `<table class="restbl"><thead><tr><th>Nimi</th><th>Runtime (k8s-nimi)</th><th>Tila</th><th>URL</th><th></th></tr></thead><tbody>`
+      + isvcData.items.map(i => `<tr>
+          <td class="nm">${esc(i.display_name || i.name)}</td>
+          <td><code style="font-size:.75rem;user-select:all" title="Klikkaa kopioidaksesi" onclick="navigator.clipboard?.writeText('${esc(i.runtime||'')}');this.style.background='#defade'">${esc(i.runtime || "–")}</code></td>
+          <td><span class="cds--tag ${i.ready ? "cds--tag--green" : "cds--tag--red"}">${i.ready ? "✓ Ready" : "✗ Ei ready"}</span></td>
+          <td>${i.url ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" style="font-size:.8125rem">${esc(i.url)}</a>` : "–"}</td>
+          <td>${!i.ready ? `<button class="cds--btn cds--btn--ghost cds--btn--sm" onclick="diagIsvc(${JSON.stringify(ns)},${JSON.stringify(i.name)},this)">🔍 Diagnostiikka</button>` : ""}</td>
+        </tr>
+        <tr class="isvc-diag-row" id="diag-${esc(i.name)}" style="display:none"><td colspan="4"><pre class="isvc-diag-pre" style="max-height:18rem;overflow:auto;font-size:.75rem;white-space:pre-wrap;background:#1c1c1c;color:#f4f4f4;padding:.75rem"></pre></td></tr>`
+    ).join("") + "</tbody></table>";
+    $("existingIsvcTable").innerHTML = rows;
+    $("existingIsvcs").classList.remove("hidden");
+  }
+
+  // ── Fill runtime dropdown ─────────────────────────────────────────────
+  lRuntimes = rtmData.items;
+  if (rtmErr) {
+    $("lrtmNote").innerHTML = `<span style="color:#da1e28">⛔ Runtime-haku epäonnistui: ${esc(rtmErr)} — tarkista OC-kirjautuminen</span>`;
+  } else if (!lRuntimes.length) {
+    $("lrtmNote").innerHTML = `<span style="color:#da1e28">⚠ Runtimeja ei löydy namespacesta "${esc(ns)}". `
+      + `Varmista: 1) oikea namespace, 2) OSAI on asennettu, 3) olet kirjautunut (OC-token voimassa). `
+      + `Kokeile: <code>oc get servingruntimes -n ${esc(ns)}</code></span>`;
+    $("lrtm").innerHTML = `<option value="">– Ei runtimeja –</option>`;
+  }
+  fillRuntimeSelect();
+
+  $("lnsLoad").disabled = false;
+  // Ensure progress is hidden even if an exception escaped (belt-and-suspenders)
+  $("lnsProgress").classList.add("hidden");
+}
+
+/** Return true if `runtimeName` is clearly incompatible with the model type.
+ *
+ * In this OSAI version runtime names equal the deployment name (e.g. "navy"),
+ * so we can only flag obvious mismatches where keywords are present.
+ */
+function runtimeCompatible(runtimeName, isOvms) {
+  const n = runtimeName.toLowerCase();
+  const hasOvmsKeyword  = n.includes("ovms") || n.includes("openvino");
+  const hasVllmKeyword  = n.includes("vllm");
+  if (isOvms && hasVllmKeyword)  return false;   // vLLM name for OVMS model — bad
+  if (!isOvms && hasOvmsKeyword) return false;   // OVMS name for vLLM model — bad
+  return true;   // ambiguous name (e.g. "navy") — allow without warning
+}
+
+/** Determine if the currently selected model is OVMS/OpenVINO. */
+function lmodelIsOvms() {
+  const raw = $("lmodel").value || "";
+  const parsed = parseLmodelValue(raw);
+  if (!parsed) return false;
+  if (parsed.framework === "openvino_ir" || parsed.framework === "onnx") return true;
+  // Fallback to advisor cache for local models
+  const adv = lAdviceCache[parsed.name];
+  return (adv?.summary?.runtime) === "ovms";
+}
+
+/** Populate the serving runtime <select>, pre-selecting the best match for the chosen model.
+ *
+ * In this OSAI version runtimes are harvested from existing ISVCs.
+ * We match by comparing the existing ISVC's model type to the current model type.
+ */
+function fillRuntimeSelect() {
+  const sel = $("lrtm"), note = $("lrtmNote");
+  if (!lRuntimes.length) {
+    sel.innerHTML = `<option value="">Ei runtimeja löydetty – hae projektin tiedot ensin</option>`;
+    note.textContent = "";
+    return;
+  }
+  const raw = $("lmodel").value || "";
+  const parsed = parseLmodelValue(raw);
+  const localName = parsed?.isLocal ? parsed.name : null;
+  const isEmbed = localName ? ((lAdviceCache[localName]?.summary?.embedding) || false) : false;
+  const isOvms  = lmodelIsOvms();
+
+  // Score each runtime: built-in type field first, then keyword fallback on name/display_name.
+  const scored = lRuntimes.map(r => {
+    const t = (r.type || "").toLowerCase();
+    const n = (r.name + " " + (r.display_name || "")).toLowerCase();
+    let score = 0;
+    if (isOvms) {
+      if (t === "ovms" || n.includes("ovms") || n.includes("openvino")) score += 20;
+      if (t === "vllm" || n.includes("vllm")) score -= 15;
+    } else {
+      if (t === "vllm" || n.includes("vllm")) score += 20;
+      if (t === "ovms" || n.includes("ovms") || n.includes("openvino")) score -= 15;
+    }
+    if (isEmbed && (n.includes("embed") || n.includes("pool"))) score += 5;
+    const gpuSel = parseInt($("lgpu").value || "0", 10) > 0;
+    if (gpuSel  && (n.includes("cuda") || n.includes("gpu") || n.includes("nvidia"))) score += 3;
+    if (!gpuSel && n.includes("cpu")) score += 3;
+    return { ...r, score };
+  }).sort((a, b) => b.score - a.score);
+
+  sel.innerHTML = scored.map(r =>
+    `<option value="${esc(r.name)}">${esc(r.display_name || r.name)}${r.kind === "BuiltIn" ? " ★" : ""}</option>`
+  ).join("");
+
+  const bestScore = scored[0]?.score ?? 0;
+  if (bestScore >= 10) {
+    note.innerHTML = `<span style="color:#198038">✓ Automaattivalinta — ${isOvms ? "OpenVINO Model Server (ovms)" : "vLLM"}</span>`;
+  } else if (bestScore > 0) {
+    note.innerHTML = `<span style="color:#f1c21b">⚠ Tarkista valinta — sopivaa runtimea ei tunnistettu automaattisesti.</span>`;
+  } else {
+    note.innerHTML = `<span style="color:#da1e28">⚠ Sopivaa runtimea ei löydy. Tarkista valinta.</span>`;
+  }
+  checkRuntimeMismatch();
+}
+
+/** Warn if the effective runtime value is an obvious type mismatch. */
+function checkRuntimeMismatch() {
+  const note = $("lrtmNote");
+  const rtmVal = ($("lrtmManual").value.trim()) || $("lrtm").value;
+  const raw = $("lmodel").value || "";
+  const isOvms = lmodelIsOvms();
+  if (!rtmVal || !raw) return;
+  if (!runtimeCompatible(rtmVal, isOvms)) {
+    note.innerHTML = `<span style="color:#da1e28">⛔ VÄÄRÄ RUNTIME: "${esc(rtmVal)}" `
+      + `ei sovi ${isOvms ? "OpenVINO/OVMS" : "vLLM"}-mallille.</span>`;
+  }
+}
+
+/**
+ * Decode the lmodel select value into {pvc, modelPath, framework, isLocal}.
+ * Values are either "pvc::model_path" (PVC model) or "local::name" (local fallback).
+ */
+function parseLmodelValue(val) {
+  if (!val) return null;
+  if (val.startsWith("local::")) return { isLocal: true, name: val.slice(7), pvc: null, modelPath: val.slice(7), framework: null };
+  const sep = val.indexOf("::");
+  if (sep < 0) return { isLocal: false, pvc: val, modelPath: val, framework: null, name: val };
+  const pvc = val.slice(0, sep);
+  const modelPath = val.slice(sep + 2);
+  const entry = lPvcModels.find(m => m.pvc === pvc && m.model_path === modelPath);
+  return { isLocal: false, pvc, modelPath, framework: entry?.framework ?? null, name: modelPath };
+}
+
+/** Called when the model selector changes. */
+async function onLaunchModelChange() {
+  const raw = $("lmodel").value;
+  if (!raw) return;
+  const parsed = parseLmodelValue(raw);
+  if (!parsed) return;
+
+  const { pvc, modelPath, framework, name, isLocal } = parsed;
+
+  // Suggest k8s deployment name
+  $("ldname").value = k8sName(modelPath || name);
+
+  // Fill PVC from actual cluster data — never guess
+  if (pvc) {
+    $("lpvc").value = pvc;
+    $("lpvcSource").textContent = "(klusterista)";
+  } else {
+    $("lpvc").value = "";
+    $("lpvcSource").textContent = "";
+  }
+
+  // Auto-set modelFormat + version based on PVC model framework.
+  // OVMS requires both name AND version; backend also fills version automatically
+  // but showing it here lets the user confirm and copy from the result.
+  /** @type {{[fw:string]:{fmt:string,ver:string}}} */
+  const FW_PRESETS = {
+    openvino_ir: { fmt: "openvino_ir", ver: "opset13" },
+    onnx:        { fmt: "onnx",        ver: "1" },
+  };
+  const preset = FW_PRESETS[framework] || null;
+  if (preset) {
+    $("lmodelFormat").value = preset.fmt;
+    $("lmodelFormatVersion").value = preset.ver;
+    $("lmodelFormatVersionReq").textContent = "(PAKOLLINEN — esitäytetty automaattisesti)";
+    $("lmodelFormatVersionReq").style.color = "var(--cds-support-success,#198038)";
+    $("lmodelFormatNote").innerHTML =
+      `<span style="color:#198038">✓ ${preset.fmt} — automaattisesti valittu. `
+      + `<strong>Pakollinen tieto</strong> OpenVINO Model Serverille.</span>`;
+  } else {
+    $("lmodelFormat").value = "vLLM";
+    $("lmodelFormatVersion").value = "";
+    $("lmodelFormatVersionReq").textContent = "(valinnainen)";
+    $("lmodelFormatVersionReq").style.color = "";
+    $("lmodelFormatNote").innerHTML =
+      `Jos saat "No runtime found to support specified framework" → vaihda tähän <strong>vLLM</strong>.`;
+  }
+
+  // Update model hint (show PVC path)
+  if (!isLocal && pvc) {
+    $("lmodelHint").textContent = `PVC: ${pvc} · Polku: ${modelPath}` + (framework ? ` · Framework: ${framework}` : "");
+  }
+
+  // Fetch advisor data for local models (PVC-only models skip this)
+  if (isLocal) {
+    if (!lAdviceCache[name]) {
+      try { lAdviceCache[name] = await api(`/api/models/${encodeURIComponent(name)}/advice`); }
+      catch { fillRuntimeSelect(); return; }
+    }
+    const a = lAdviceCache[name];
+    const isOvmsModel = a.summary && a.summary.runtime === "ovms";
+    const gpuCount = parseInt($("lgpu").value || "0", 10);
+    if (isOvmsModel) {
+      $("lmem").value = a.cpu?.memory_gi || 2;
+      $("lcpu").value = a.cpu?.cpu || 2;
+      $("largs").value = "";
+      $("lenv").value = "";
+    } else if (gpuCount > 0 && a.gpu) {
+      $("lmem").value = a.gpu.gpu_memory_gi || a.cpu?.memory_gi || 8;
+      $("lcpu").value = a.cpu?.cpu || 4;
+      $("largs").value = (a.gpu.args || []).join("\n");
+      $("lenv").value = Object.entries(a.gpu.env || {}).map(([k, v]) => `${k}=${v}`).join("\n");
+    } else if (a.cpu) {
+      $("lmem").value = a.cpu.memory_gi || 8;
+      $("lcpu").value = a.cpu.cpu || 4;
+      $("largs").value = (a.cpu.args || []).join("\n");
+      $("lenv").value = Object.entries(a.cpu.env || {}).map(([k, v]) => `${k}=${v}`).join("\n");
+    }
+    $("ladvBody").innerHTML = adviceHtml(a);
+    $("ladvBox").classList.remove("hidden");
+    $("ladvBox").open = true;
+  }
+
+  // Re-score runtimes with new model data
+  fillRuntimeSelect();
+}
+
+/** Switch hardware preset when GPU count changes. */
+function onGpuChange() {
+  onLaunchModelChange();  // re-fill from advisor with new GPU context
+}
+
+/** Render launch job progress. */
+function renderLaunch(s) {
+  $("launchSteps").innerHTML = s.steps.map(x => `
+    <li class="${STEP_CLS[x.state]}">${SVG[STEP_CLS[x.state]]}
+      <span class="nm">${esc(x.name)}</span>
+      <span class="tm">${x.elapsed_s != null ? fmtT(x.elapsed_s) : ""}</span></li>`).join("");
+  $("launchLog").textContent = s.log.join("\n");
+  $("launchLog").scrollTop = $("launchLog").scrollHeight;
+  $("launchMsg").innerHTML = s.state === "error" ? notify("error", s.message || "Virhe") : "";
+}
+
+/** Render the result tile after a successful launch. */
+function showLaunchResult(r) {
+  const smoke = r.smoke;
+  let smokeHtml = "";
+  if (smoke) {
+    const icon = smoke.ok ? "✅" : "⚠️";
+    smokeHtml = `<h3 style="font-size:1rem;font-weight:600;margin:.75rem 0 .25rem">Smoke-testi</h3>
+      <p>${icon} <strong>${smoke.ok ? "OK" : "Epäonnistui tai ei vastausta"}</strong> · URL: <code>${esc(smoke.url)}</code></p>`;
+    if (smoke.chat) {
+      const chatOk = smoke.chat.ok;
+      smokeHtml += `<p>${chatOk ? "✅" : "⚠️"} Chat-testi: ${chatOk ? `<em>${esc(smoke.chat.reply)}</em>` : esc(smoke.chat.raw || smoke.chat.error || "–")}</p>`;
+    }
+    if (!smoke.ok && smoke.body_snippet) {
+      smokeHtml += `<pre style="max-height:6rem">${esc(smoke.body_snippet)}</pre>`;
+    }
+  } else if (!r.route_url) {
+    smokeHtml = `<p class="muted">External routea ei löydy – smoke-testi ohitettu. Ota external route käyttöön deploymentissa.</p>`;
+  }
+
+  const fmtLabel = r.model_format
+    ? `${esc(r.model_format)}${r.model_format_version ? `<span class="muted"> v${esc(r.model_format_version)}</span>` : ""}`
+    : "";
+  $("launchResult").innerHTML = `
+    <strong>✅ InferenceService luotu!</strong>
+    <div class="meta" style="margin-top:.75rem">
+      <span>Deployment: <code>${esc(r.deployment_name)}</code></span>
+      <span>Namespace: <code>${esc(r.namespace)}</code></span>
+      <span>Runtime: <code>${esc(r.serving_runtime || "(automaattinen)")}</code></span>
+      ${fmtLabel ? `<span>Model framework: <code>${fmtLabel}</code></span>` : ""}
+    </div>
+    ${r.route_url ? `
+      <p style="margin:.75rem 0 .25rem"><strong>Inference endpoint (External):</strong></p>
+      <div class="cmdbox"><pre>${esc(r.route_url)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+      <p style="margin:.5rem 0 .25rem"><strong>OVMS v2 malliendpoint:</strong></p>
+      <div class="cmdbox"><pre>${esc(r.route_url)}/v2/models/${esc(r.deployment_name)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>` : ""}
+    ${r.isvc_token ? `
+      <p style="margin:.5rem 0 .25rem"><strong>Bearer token (tallennettu automaattisesti OpenShift AI:hin):</strong></p>
+      <div class="cmdbox"><pre style="white-space:pre-wrap;word-break:break-all">${esc(r.isvc_token)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>` : ""}
+    <p style="margin:.5rem 0 .25rem"><strong>pvc://-URI</strong> (OpenShift AI:n Model path):</p>
+    <div class="cmdbox"><pre>pvc://${esc(r.pvc)}/${esc(r.model_path)}</pre><button class="cds--btn cds--btn--ghost cds--btn--sm copybtn" type="button">Kopioi</button></div>
+    ${smokeHtml}
+    <p class="muted" style="margin-top:.75rem">Lisää testejä: lataa <a href="/static/osai_model_test.ipynb" download>osai_model_test.ipynb</a> OpenShift AI -workbenchiin.</p>`;
+  $("launchResult").classList.remove("hidden");
+  $("launchResult").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/** Parse args textarea → array; env textarea → object. */
+function parseArgs(text) {
+  return text.split("\n").map(s => s.trim()).filter(Boolean);
+}
+function parseEnv(text) {
+  const obj = {};
+  for (const line of text.split("\n")) {
+    const eq = line.indexOf("=");
+    if (eq > 0) obj[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
+  }
+  return obj;
+}
+
+/** Clear launch form and results. */
+function clearLaunch() {
+  if ($("lgo").disabled) { alert("Deploy on käynnissä. Odota sen valmistumista."); return; }
+  clearInterval(timers.lp);
+  $("launchProgress").classList.add("hidden");
+  $("launchResult").classList.add("hidden");
+  $("launchSteps").innerHTML = "";
+  $("launchLog").textContent = "";
+  $("launchMsg").innerHTML = "";
+  lNsLoaded = "";
+  lPvcModels = [];
+  $("existingIsvcs").classList.add("hidden");
+  $("lpvc").value = "";
+  $("lpvcSource").textContent = "";
+  $("lmodelFormatVersion").value = "";
+  $("lmodelFormat").value = "vLLM";
+  $("lmodelFormatVersionReq").textContent = "(valinnainen)";
+  $("lmodelFormatVersionReq").style.color = "";
+}
+
+/** Fetch ISVC diagnostics and display them inline below the table row. */
+async function diagIsvc(ns, name, btn) {
+  const rowId = "diag-" + name;
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const pre = row.querySelector(".isvc-diag-pre");
+  if (row.style.display !== "none") { row.style.display = "none"; btn.textContent = "🔍 Diagnostiikka"; return; }
+  btn.disabled = true;
+  btn.textContent = "Haetaan…";
+  pre.textContent = "Haetaan diagnostiikkatietoja…";
+  row.style.display = "";
+  try {
+    const d = await api(`/api/isvc-diag?namespace=${encodeURIComponent(ns)}&name=${encodeURIComponent(name)}`);
+    let out = "";
+    if (d.conditions?.length) {
+      out += "── CONDITIONS ──\n";
+      for (const c of d.conditions) {
+        out += `${c.type}: ${c.status}  reason=${c.reason || "-"}  message=${c.message || "-"}\n`;
+      }
+      out += "\n";
+    }
+    if (d.events) { out += "── EVENTS ──\n" + d.events + "\n\n"; }
+    if (d.pods)   { out += "── PODS ──\n" + d.pods + "\n\n"; }
+    if (d.pod_describe) { out += "── POD DESCRIBE (katkaistu) ──\n" + d.pod_describe; }
+    if (!out.trim()) out = d.isvc_stdout || "(ei tietoja)";
+    pre.textContent = out;
+    btn.textContent = "✕ Sulje";
+  } catch (e) {
+    pre.textContent = "Virhe: " + e.message;
+    btn.textContent = "🔍 Diagnostiikka";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/** Return the effective serving runtime value: manual input overrides dropdown. */
+function getRtm() {
+  const manual = $("lrtmManual").value.trim();
+  return manual || $("lrtm").value;
+}
+
+/* ── event listeners ── */
+$("lnsLoad").onclick = fetchNsData;
+$("lns").onkeydown = e => { if (e.key === "Enter") fetchNsData(); };
+$("lmodel").onchange = onLaunchModelChange;
+$("lgpu").onchange = onGpuChange;
+$("lrtm").onchange = checkRuntimeMismatch;
+$("lrtmManual").oninput = checkRuntimeMismatch;
+$("lrtmManualToggle").onclick = () => {
+  const box = $("lrtmManualBox");
+  const open = box.style.display !== "none";
+  box.style.display = open ? "none" : "block";
+  $("lrtmManualToggle").textContent = open ? "✏️ Kirjoita käsin" : "✕ Sulje";
+  if (!open) $("lrtmManual").focus();
+};
+$("lclear").onclick = clearLaunch;
+
+$("lgo").onclick = async () => {
+  const ns = $("lns").value.trim();
+  const dname = $("ldname").value.trim();
+  const modelSel = $("lmodel").value;
+  const rtm = getRtm();
+
+  if (!ns || !dname || !modelSel) {
+    alert("Täytä pakolliset kentät: projekti, deployment name ja malli.");
+    return;
+  }
+  // DNS name validation (client side)
+  if (!/^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]?$/.test(dname)) {
+    alert("Deployment name: vain pieniä kirjaimia, numeroita ja viivoja (a-z0-9-).");
+    return;
+  }
+
+  // Resolve actual pvc_name and model_path strictly from cluster data — no guessing
+  const parsed = parseLmodelValue(modelSel);
+  const actualPvc = parsed?.pvc && !parsed.isLocal ? parsed.pvc : "";
+  const modelPath = parsed ? parsed.modelPath : "";
+  const modelDir  = parsed?.isLocal ? parsed.name : modelPath;
+
+  if (!actualPvc) {
+    alert("PVC:n nimi puuttuu — hae ensin projektin tiedot (Hae tiedot -nappi) ja valitse malli listalta.");
+    return;
+  }
+  if (!modelPath) {
+    alert("Mallipolku puuttuu — hae ensin projektin tiedot ja valitse malli listalta.");
+    return;
+  }
+
+  // Runtime compatibility guard
+  const isOvmsGuard = lmodelIsOvms();
+  if (!runtimeCompatible(rtm, isOvmsGuard)) {
+    const expected = isOvmsGuard ? "ovms / openvino" : "vllm";
+    if (!confirm(`⛔ Runtime "${rtm}" ei todennäköisesti sovi tälle mallille (odotettu: ${expected}).\n\nDeployment epäonnistuu OSAI:ssa.\n\nJatketaanko silti?`)) return;
+  }
+
+  const body = {
+    model_dir: modelDir,
+    namespace: ns,
+    deployment_name: dname,
+    pvc_name: actualPvc,
+    model_path: modelPath,
+    serving_runtime: rtm,
+    model_format: $("lmodelFormat").value,
+    model_format_version: ($("lmodelFormatVersion").value || "").trim(),
+    memory_gi: parseInt($("lmem").value, 10),
+    cpu: parseInt($("lcpu").value, 10),
+    cpu_request_m: parseInt($("lcpureq").value, 10) || null,
+    gpu_count: parseInt($("lgpu").value, 10),
+    runtime_args: parseArgs($("largs").value),
+    runtime_env: parseEnv($("lenv").value),
+    token_auth: $("ltok").checked,
+    external_route: $("lext").checked,
+    run_smoke_test: $("lsmoke").checked,
+  };
+
+  $("launchResult").classList.add("hidden");
+  $("launchProgress").classList.remove("hidden");
+  $("lgo").disabled = true;
+
+  $("lreset").classList.add("hidden");
+  try {
+    const j = await post("/api/launches", body);
+    poll("lp", "/api/launches/" + j.id, renderLaunch, s => {
+      $("lgo").disabled = false;
+      if (s.state === "done") showLaunchResult(s.result);
+    });
+  } catch (e) {
+    $("lgo").disabled = false;
+    $("launchMsg").innerHTML = notify("error", e.message);
+    // Show reset button when blocked by a stuck job (HTTP 409)
+    if (e.message && (e.message.includes("käynnissä") || e.message.includes("409"))) {
+      $("lreset").classList.remove("hidden");
+    }
+  }
+};
+
+/** Force-cancel all stuck launch jobs so a new one can start. */
+$("lreset").onclick = async () => {
+  $("lreset").disabled = true;
+  try {
+    const r = await post("/api/launches/reset");
+    $("launchMsg").innerHTML = notify("success",
+      `Reset OK — ${r.cleared} tehtävä(ä) nollattu. Voit nyt julkaista uudelleen.`);
+    $("lreset").classList.add("hidden");
+  } catch (e) {
+    $("launchMsg").innerHTML = notify("error", "Reset epäonnistui: " + e.message);
+  } finally {
+    $("lreset").disabled = false;
+  }
+};
 
 loadInfo().then(() => { loadStorage(); return api("/api/session"); }).then(setLogged);
 </script>
